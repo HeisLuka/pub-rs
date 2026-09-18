@@ -105,6 +105,25 @@
 
 Directory разбирается только внутри переданного `RawSpan`. Повреждённый occupied container не может выйти за границы этого диапазона.
 
+### Chunk references внутри occupied slot
+
+Canonical Claim PUB-C-123 фиксирует semantic mapping для проверенного later-0x2C corpus:
+
+- field `0x02` → raw chunk type;
+- field `0x04` → физический offset chunk внутри `Contents`;
+- field `0x05` → parent seqNum, если поле присутствует;
+- seqNum самой ссылки остаётся ordinal позиции directory.
+
+Это mapping-правило **не утверждает wire-type поля**. В коде значение поднимается в `ObservedU32Field` только если фактический field block уже успешно разобран как подтверждённый `U32`. Если тот же ID встретится с другим поддержанным wire-body, поле сохраняется в `fields`, но семантически не повышается.
+
+`Contents0x2cChunkReference` намеренно хранит массивы наблюдений:
+
+- `raw_types`;
+- `chunk_offsets`;
+- `parent_seq_nums`.
+
+Дубликаты не схлопываются, а отсутствие `0x05` допустимо. Это не даёт текущему parser-слою молча решить, какое из нескольких значений «правильное».
+
 ### Ограничение
 
 Эти наблюдения подтверждены для нативных Publisher 2002/2003. Нельзя без отдельной проверки превращать конкретный префикс `00 78` или детали вложенного контейнера в универсальную грамматику всех поздних 0x2C-файлов.
@@ -131,8 +150,10 @@ Directory разбирается только внутри переданног�
 - `ContentsCursor`, который не читает за границы и умеет ограничиваться диапазоном родителя;
 - минимальный wire-parser только для подтверждённых block types `0x20/0x78/0x88/0x90`;
 - транзакционное чтение блока: ошибка не теряет исходную позицию;
-- `Contents0x2cDirectory` с позиционными `Empty/Occupied` slots без синтетического поля seqNum;
-- точный `RawSpan` для каждого slot и его container;
+- `Contents0x2cDirectory` с позиционными `Empty/Occupied` slots без синтетического wire-поля seqNum;
+- evidence-gated `Contents0x2cChunkReference` для mapping `0x02/0x04/0x05`;
+- сохранение всех физически разобранных reference fields и всех дублирующихся semantic observations;
+- точный `RawSpan` для каждого slot, reference field и его значения;
 - точный `RawSpan` для блока, его значения/длины и содержимого container;
 - никакого вычисления маркетинговой версии Publisher.
 
