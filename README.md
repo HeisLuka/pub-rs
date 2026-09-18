@@ -1,52 +1,57 @@
 # pub-rs
 
-A lossless, research-driven Rust implementation of the Microsoft Publisher (`.pub`) file format.
+Исследовательская реализация формата Microsoft Publisher (`.pub`) на Rust с приоритетом сохранения данных без потерь.
 
-The long-term goal is a native reader **and writer** that preserves unknown data, keeps cross-stream identity intact, and can edit Publisher files without flattening them into a generic drawing model.
+Долгосрочная цель — собственные **чтение и запись** PUB, которые сохраняют неизвестные данные, не ломают идентичность между потоками и позволяют редактировать Publisher-файлы без сведения их к универсальной модели рисования.
 
-> Status: very early. The repository is being bootstrapped from a large reverse-engineering corpus and differential testing against existing implementations.
+> Статус: очень ранняя стадия. Репозиторий строится на большой базе реверс-инжиниринга и дифференциальных проверок с существующими реализациями.
 
-## Design principles
+## Принципы архитектуры
 
-- **Lossless first.** Unknown records and properties are preserved instead of discarded.
-- **Raw + semantic.** Every decoded value should retain provenance back to the source stream and byte range.
-- **Native identities matter.** Contents, Quill, Escher and other projections are joined through an explicit identity graph.
-- **Rendering is a consumer, not the source of truth.**
-- **Writer-oriented architecture.** The model is designed for selective reserialization and eventual native `.pub` writing.
-- **Evidence over guesses.** Non-trivial format claims should carry provenance to a public specification, source implementation, or reproducible fixture.
+- **Сначала сохранность.** Неизвестные записи и свойства сохраняются, а не отбрасываются.
+- **Сырые данные + семантика.** Для каждого декодированного значения должно сохраняться происхождение вплоть до исходного потока и диапазона байтов.
+- **Собственные идентичности важны.** Contents, Quill, Escher и другие проекции связываются только через явный граф идентичности.
+- **Отображение — потребитель, а не источник истины.**
+- **Архитектура с расчётом на запись.** Модель должна позволять выборочную пересборку проекций и последующую собственную запись `.pub`.
+- **Доказательства важнее догадок.** Нетривиальные утверждения о формате должны иметь происхождение: публичную спецификацию, контролируемый файл/дифф, независимую реализацию или явно помеченную гипотезу.
+- **Новые открытия должны расширять модель, а не ломать фундамент.**
 
-## Initial workspace
+## Начальная структура workspace
 
-The first milestone is deliberately smaller than full Publisher support:
+Первый этап намеренно меньше полной поддержки Publisher:
 
 ```text
-pub-core      raw spans, diagnostics, shared IDs
-pub-cfb       Compound File Binary inventory/access
-pub-contents  Publisher Contents stream structures
-pub-quill     Quill text/style structures
-pub-escher    OfficeArt/Escher/FOPT structures
-pub-model     canonical Publisher semantic/identity model
-pub-cli       inspection and validation commands
+pub-core      исходные диапазоны, диагностика, подтверждённые общие типы
+pub-cfb       доступ к Compound File Binary и перечень его элементов
+pub-contents  структуры потока Publisher Contents
+pub-quill     структуры текста и стилей Quill
+pub-escher    структуры OfficeArt/Escher/FOPT
+pub-model     семантическая модель и граф идентичности Publisher
+pub-cli       команды анализа и проверки
 ```
 
-The first useful command is:
+Первая полезная команда:
 
 ```bash
 cargo run -p pub-cli -- inspect path/to/file.pub --json
 ```
 
-Initially it reports the CFB structure. Contents, Quill, Escher and semantic lifting will be added incrementally.
+Сейчас она показывает структуру CFB. Разбор Contents, Quill, Escher и подъём семантической модели будут добавляться постепенно.
 
-## Relationship to libmspub
+## Связь с libmspub
 
-`libmspub` is a valuable behavioral oracle and historical source of format knowledge, but `pub-rs` is not intended to be a line-for-line Rust port. In particular, the canonical model here must preserve raw/unknown state needed by a future writer.
+`libmspub` — ценный поведенческий эталон и исторический источник знаний о формате, но `pub-rs` не задуман как построчный перенос на Rust. Каноническая модель здесь обязана сохранять сырое и неизвестное состояние, необходимое будущему модулю записи.
 
-See [docs/PROVENANCE.md](docs/PROVENANCE.md) and [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+См. [docs/PROVENANCE.md](docs/PROVENANCE.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) и [docs/IDENTITY.md](docs/IDENTITY.md).
 
-## CI policy
+## Язык проекта
 
-Normal pull-request CI is intentionally cheap: one Linux job runs formatting, check, Clippy and tests. Expensive corpus, fuzzing and differential workflows are manual until they justify their cost.
+Человеческий текст проекта ведётся на русском языке: документация, описания PR и issues, комментарии в коде, сообщения об ошибках, пользовательская помощь CLI и новые сообщения коммитов. Имена типов, функций, полей и другие программные идентификаторы остаются на техническом английском языке.
 
-## License
+## Политика CI
 
-Apache License 2.0. Individual imported/derived files may carry different compatible notices when required; see provenance documentation.
+Обычный CI для pull request намеренно дешёвый: одна Linux-задача последовательно выполняет форматирование, `check`, Clippy и тесты. Дорогие проверки корпуса, фаззинг и дифференциальные прогоны остаются ручными, пока не появится причина включить их в постоянный CI.
+
+## Лицензия
+
+Apache License 2.0. Отдельные импортированные или производные файлы при необходимости могут иметь дополнительные совместимые уведомления; подробности — в документации происхождения.

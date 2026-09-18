@@ -6,7 +6,7 @@ use std::path::PathBuf;
 #[command(
     name = "pub",
     version,
-    about = "Inspect Microsoft Publisher .pub files"
+    about = "Анализ файлов Microsoft Publisher .pub"
 )]
 struct Cli {
     #[command(subcommand)]
@@ -15,7 +15,7 @@ struct Cli {
 
 #[derive(Debug, Subcommand)]
 enum Command {
-    /// Inspect the Compound File Binary structure.
+    /// Показать структуру контейнера Compound File Binary.
     Inspect {
         path: PathBuf,
         #[arg(long)]

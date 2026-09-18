@@ -1,18 +1,12 @@
-use serde::{Deserialize, Serialize};
-
-#[derive(Debug, Default, Clone, Serialize, Deserialize)]
-pub struct EditorDocument {
-    pub pages: Vec<Page>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Page {
-    pub native_id: u32,
-    pub shapes: Vec<Shape>,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Shape {
-    pub native_id: u32,
-    pub text: Option<String>,
-}
+//! Граница семантической модели PUB.
+//!
+//! Этот crate намеренно пока не вводит универсальный `native_id`,
+//! единого владельца текста или другие предполагаемые связи между проекциями.
+//! Текущие доказательства показывают наличие нескольких собственных пространств
+//! идентичности в Contents, Quill и OfficeArt/Escher. Отдельные типы
+//! идентификаторов и связи между ними должны добавляться только тогда,
+//! когда явно зафиксированы область действия и доказательство.
+//!
+//! Слой исходных байтов находится в `pub-core`; низкоуровневые парсеры
+//! проекций — в соответствующих crate. Семантическая модель должна подниматься
+//! поверх этих проекций, а не подменять их как источник истины.

@@ -1,19 +1,43 @@
-# Contributing
+# Участие в разработке
 
-## Before coding
+## Язык
 
-For non-trivial format behavior, open or reference an issue that states the evidence source: specification, controlled fixture/diff, independent implementation, or explicit hypothesis.
+Весь человеческий текст проекта пишется на русском языке:
 
-## Pull requests
+- описания и комментарии pull request;
+- issues и комментарии к ним;
+- документация;
+- комментарии и rustdoc в коде;
+- сообщения об ошибках и пользовательская помощь CLI;
+- новые сообщения коммитов.
 
-Keep changes narrow. Add a regression test whenever behavior can be represented by a small fixture or synthetic byte sequence.
+Программные идентификаторы Rust и названия сущностей внешних спецификаций сохраняются в исходной технической форме, если перевод ухудшает точность.
 
-Do not silently discard unknown records/properties. If a parser cannot interpret data yet, preserve enough raw state and provenance for later analysis or writing.
+## Перед написанием кода
 
-## Licensing
+Для нетривиального поведения формата нужно открыть или указать issue, где зафиксированы:
 
-Do not mechanically port substantial libmspub code or large tables into Apache-2.0 files without first documenting the provenance and checking MPL-2.0 obligations.
+- источник доказательства;
+- статус утверждения;
+- область действия;
+- что из доказательства нельзя выводить.
+
+Допустимые источники: спецификация, контролируемый файл и двоичный дифф, независимая реализация либо явно помеченная гипотеза.
+
+Гипотеза не должна становиться фундаментальным типом или универсальным правилом.
+
+## Pull request
+
+Изменения должны быть узкими. Если поведение можно представить небольшим тестовым файлом или синтетической последовательностью байтов, добавляется регрессионный тест.
+
+Нельзя молча отбрасывать неизвестные записи или свойства. Если парсер пока не умеет интерпретировать данные, он должен сохранить достаточно исходного состояния и происхождения для будущего анализа или записи.
+
+Нельзя объединять разные пространства идентичности только из-за совпадения числовых значений.
+
+## Лицензирование
+
+Нельзя механически переносить существенные части кода libmspub или большие таблицы в файлы Apache-2.0 без фиксации происхождения и отдельной проверки обязательств MPL-2.0.
 
 ## CI
 
-Normal CI is intentionally small. Expensive corpus, fuzzing, Miri and differential checks belong in the manual heavy workflow unless there is a strong reason to promote them.
+Обычный CI намеренно небольшой. Дорогие проверки корпуса, фаззинг, Miri и дифференциальные прогоны должны оставаться в ручном тяжёлом процессе, пока нет веской причины переносить их в постоянный CI.
