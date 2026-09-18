@@ -3,10 +3,15 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 mod block;
+mod directory;
 
 pub use block::{
     BLOCK_TYPE_CONTAINER_88, BLOCK_TYPE_CONTAINER_90, BLOCK_TYPE_DUMMY, BLOCK_TYPE_U32,
     BlockReadError, RawContentsBlock, RawContentsBlockBody, parse_confirmed_block,
+};
+pub use directory::{
+    Contents0x2cDirectory, Contents0x2cDirectorySlot, DirectoryReadError,
+    parse_confirmed_0x2c_directory,
 };
 
 pub const CONTENTS_0X22_MAGIC: [u8; 4] = [0xE8, 0xAC, 0x22, 0x00];
