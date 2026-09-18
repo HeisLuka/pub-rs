@@ -1,0 +1,17 @@
+name: Heavy checks
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: heavy-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  placeholder:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - uses: dtolnay/rust-toolchain@stable
+      - run: cargo test --workspace
+      - run: echo "Reserved for manual corpus, differential, fuzz and Miri checks."
