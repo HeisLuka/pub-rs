@@ -1,20 +1,20 @@
-## What changed
+## Что изменено
 
-## Evidence / provenance
-- [ ] Public specification
-- [ ] Controlled fixture / binary diff
-- [ ] Existing implementation comparison
-- [ ] Hypothesis only (clearly marked)
+## Доказательства и происхождение
+- [ ] Публичная спецификация
+- [ ] Контролируемый файл / двоичное сравнение
+- [ ] Сравнение с существующей реализацией
+- [ ] Только гипотеза — явно помечена
 
-### Claim discipline
-- **Status:**
-- **Scope / binary family:**
-- **Exact evidence / fixture / spec section:**
-- **Do not infer:**
+### Дисциплина утверждений
+- **Статус:**
+- **Область действия / бинарное семейство:**
+- **Точное доказательство / файл / раздел спецификации:**
+- **Нельзя выводить:**
 
-## Preservation check
-- [ ] Unknown/raw state is preserved or intentionally unaffected
-- [ ] New behavior has a regression test where practical
-- [ ] Renderer/export assumptions did not leak into the canonical model
-- [ ] No identity namespaces were merged without demonstrated evidence
-- [ ] No family-specific fact was promoted to a universal rule
+## Проверка сохранности
+- [ ] Неизвестное и сырое состояние сохраняется либо намеренно не затрагивается
+- [ ] Для нового поведения добавлен регрессионный тест, где это практически возможно
+- [ ] Предположения отображения/экспорта не попали в каноническую модель
+- [ ] Разные пространства идентичности не объединены без доказанной связи
+- [ ] Факт одного семейства не был повышен до универсального правила
