@@ -25,8 +25,8 @@ pub struct CfbInventory {
 
 pub fn inspect_path(path: impl AsRef<Path>) -> Result<CfbInventory> {
     let path = path.as_ref();
-    let compound =
-        cfb::open(path).with_context(|| format!("failed to open CFB file {}", path.display()))?;
+    let compound = cfb::open(path)
+        .with_context(|| format!("не удалось открыть CFB-файл {}", path.display()))?;
 
     let entries = compound
         .walk()
