@@ -4,6 +4,7 @@ use std::fmt;
 
 mod block;
 mod directory;
+mod reference;
 
 pub use block::{
     BLOCK_TYPE_CONTAINER_88, BLOCK_TYPE_CONTAINER_90, BLOCK_TYPE_DUMMY, BLOCK_TYPE_U32,
@@ -12,6 +13,11 @@ pub use block::{
 pub use directory::{
     Contents0x2cDirectory, Contents0x2cDirectorySlot, DirectoryReadError,
     parse_confirmed_0x2c_directory,
+};
+pub use reference::{
+    CHUNK_REFERENCE_OFFSET_ID, CHUNK_REFERENCE_PARENT_SEQ_NUM_ID, CHUNK_REFERENCE_RAW_TYPE_ID,
+    ChunkReferenceReadError, Contents0x2cChunkReference, ObservedU32Field,
+    parse_confirmed_chunk_reference,
 };
 
 pub const CONTENTS_0X22_MAGIC: [u8; 4] = [0xE8, 0xAC, 0x22, 0x00];
