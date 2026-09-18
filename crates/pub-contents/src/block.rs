@@ -20,6 +20,10 @@ pub struct RawContentsBlock {
 #[serde(tag = "kind", rename_all = "snake_case")]
 pub enum RawContentsBlockBody {
     Empty,
+    U16 {
+        value: u16,
+        value_source: RawSpan,
+    },
     U32 {
         value: u32,
         value_source: RawSpan,
