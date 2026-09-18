@@ -1,3 +1,4 @@
+// Исследовательский PR временно запускает прямую проверку публичных PUB-файлов.
 use pub_core::{RawSpan, StreamPath};
 use serde::{Deserialize, Serialize};
 use std::fmt;
