@@ -114,15 +114,29 @@ Canonical Claim PUB-C-123 фиксирует semantic mapping для прове�
 - field `0x05` → parent seqNum, если поле присутствует;
 - seqNum самой ссылки остаётся ordinal позиции directory.
 
-Это mapping-правило **не утверждает wire-type поля**. В коде значение поднимается в `ObservedU32Field` только если фактический field block уже успешно разобран как подтверждённый `U32`. Если тот же ID встретится с другим поддержанным wire-body, поле сохраняется в `fields`, но семантически не повышается.
+После прямого бинарного прогона OBS-RS-001 wire-схема этих references закрыта отдельным Canonical Claim PUB-C-125. На **234/234** occupied slots пяти файлов:
 
-`Contents0x2cChunkReference` намеренно хранит массивы наблюдений:
+- `field 0x02` всегда имеет `type 0x18` и 2-byte payload;
+- `field 0x04` всегда имеет `type 0xB8` и 4-byte payload;
+- присутствующий `field 0x05` всегда имеет `type 0x68` и 4-byte payload;
+- `field 0x06` всегда имеет `type 0x10` и 2-byte payload;
+- optional presence fields используют `type 0x08` без payload;
+- optional `field 0x0B` использует `type 0x18`.
 
-- `raw_types`;
-- `chunk_offsets`;
-- `parent_seq_nums`.
+В каждом из пяти файлов один корневой occupied reference не имеет field `0x05`; отсутствие parent поэтому не является malformed-состоянием.
 
-Дубликаты не схлопываются, а отсутствие `0x05` допустимо. Это не даёт текущему parser-слою молча решить, какое из нескольких значений «правильное».
+Общий `parse_confirmed_block` по-прежнему не расширяется этими типами глобально: PUB-C-125 подтверждает их именно в **chunk-reference context**. Для occupied reference используется отдельный context parser, который:
+
+- переиспользует глобально подтверждённые wire-types, когда они встречаются;
+- дополнительно допускает только `0x08/0x10/0x18/0x68/0xB8` по PUB-C-125;
+- сохраняет каждый физически разобранный field в `fields`;
+- поднимает `0x02` только из фактической пары `id0x02/type0x18` в `ObservedU16Field`;
+- поднимает `0x04` только из `id0x04/type0xB8` в `ObservedU32Field`;
+- поднимает `0x05` только из `id0x05/type0x68` в `ObservedU32Field`;
+- не схлопывает дубликаты и не синтезирует отсутствующий parent;
+- останавливается на новом неподтверждённом wire-type вместо угадывания его длины.
+
+Основание: PUB-C-123, PUB-C-125, OBS-RS-001.
 
 ### Ограничение
 
@@ -151,7 +165,8 @@ Canonical Claim PUB-C-123 фиксирует semantic mapping для прове�
 - минимальный wire-parser только для подтверждённых block types `0x20/0x78/0x88/0x90`;
 - транзакционное чтение блока: ошибка не теряет исходную позицию;
 - `Contents0x2cDirectory` с позиционными `Empty/Occupied` slots без синтетического wire-поля seqNum;
-- evidence-gated `Contents0x2cChunkReference` для mapping `0x02/0x04/0x05`;
+- evidence-gated `Contents0x2cChunkReference` с реальной wire-схемой PUB-C-125 для mapping `0x02/0x04/0x05`;
+- context-specific разбор reference wire-types `0x08/0x10/0x18/0x68/0xB8` без глобального обобщения;
 - сохранение всех физически разобранных reference fields и всех дублирующихся semantic observations;
 - точный `RawSpan` для каждого slot, reference field и его значения;
 - точный `RawSpan` для блока, его значения/длины и содержимого container;
