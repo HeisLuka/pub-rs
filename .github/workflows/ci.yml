@@ -23,3 +23,9 @@ jobs:
       - run: cargo check --workspace --all-targets
       - run: cargo clippy --workspace --all-targets -- -D warnings
       - run: cargo test --workspace
+      - name: Установить OLE-ридер для исследовательской ветки
+        if: github.head_ref == 'research/verify-contents-trailer-root'
+        run: python -m pip install --disable-pip-version-check olefile
+      - name: Прямо проверить байты Contents trailer
+        if: github.head_ref == 'research/verify-contents-trailer-root'
+        run: python .github/scripts/verify_contents_trailer.py
