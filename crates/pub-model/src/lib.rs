@@ -1,11 +1,12 @@
-//! Semantic-model boundary for PUB.
+//! Граница семантической модели PUB.
 //!
-//! This crate intentionally does not define a universal `native_id`, a
-//! canonical text owner, or other guessed cross-projection fields yet.
-//! Current evidence shows multiple native identity namespaces across Contents,
-//! Quill and OfficeArt/Escher. Namespace-specific identities and joins should
-//! be added only when their scope and evidence are explicit.
+//! Этот crate намеренно пока не вводит универсальный `native_id`,
+//! единого владельца текста или другие предполагаемые связи между проекциями.
+//! Текущие доказательства показывают наличие нескольких собственных пространств
+//! идентичности в Contents, Quill и OfficeArt/Escher. Отдельные типы
+//! идентификаторов и связи между ними должны добавляться только тогда,
+//! когда явно зафиксированы область действия и доказательство.
 //!
-//! The raw byte-backed layer lives in `pub-core`; low-level projection
-//! parsers live in their respective crates. The semantic model will be lifted
-//! from those projections rather than replacing them as the source of truth.
+//! Слой исходных байтов находится в `pub-core`; низкоуровневые парсеры
+//! проекций — в соответствующих crate. Семантическая модель должна подниматься
+//! поверх этих проекций, а не подменять их как источник истины.
