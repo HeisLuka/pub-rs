@@ -1,4 +1,4 @@
-name: Heavy checks
+name: Тяжёлые проверки
 on:
   workflow_dispatch:
 permissions:
@@ -14,4 +14,4 @@ jobs:
       - uses: actions/checkout@v5
       - uses: dtolnay/rust-toolchain@stable
       - run: cargo test --workspace
-      - run: echo "Reserved for manual corpus, differential, fuzz and Miri checks."
+      - run: echo "Зарезервировано для ручных проверок корпуса, дифференциальных прогонов, фаззинга и Miri."
