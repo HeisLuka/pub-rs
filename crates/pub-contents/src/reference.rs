@@ -105,23 +105,21 @@ pub fn parse_confirmed_chunk_reference(
     let content_source = match &block.body {
         RawContentsBlockBody::Container { content_source, .. } => content_source,
         _ => {
-            return Err(ChunkReferenceReadError::InconsistentOccupiedSlot {
-                seq_num,
-            });
+            return Err(ChunkReferenceReadError::InconsistentOccupiedSlot { seq_num });
         }
     };
 
-    let start =
-        usize::try_from(content_source.offset).map_err(|_| ChunkReferenceReadError::SpanTooLarge {
+    let start = usize::try_from(content_source.offset).map_err(|_| {
+        ChunkReferenceReadError::SpanTooLarge {
             source: content_source.clone(),
-        })?;
+        }
+    })?;
     let len =
         usize::try_from(content_source.len).map_err(|_| ChunkReferenceReadError::SpanTooLarge {
             source: content_source.clone(),
         })?;
 
-    let mut cursor =
-        ContentsCursor::bounded(content_source.stream.clone(), bytes, start, len)?;
+    let mut cursor = ContentsCursor::bounded(content_source.stream.clone(), bytes, start, len)?;
     let mut fields = Vec::new();
     let mut raw_types = Vec::new();
     let mut chunk_offsets = Vec::new();
@@ -204,8 +202,7 @@ mod tests {
     fn parent_field_is_optional() {
         let bytes = [
             0x00, 0x88, 0x10, 0x00, 0x00, 0x00, // occupied, 12 bytes content
-            0x02, 0x20, 0x44, 0x00, 0x00, 0x00,
-            0x04, 0x20, 0x20, 0x00, 0x00, 0x00,
+            0x02, 0x20, 0x44, 0x00, 0x00, 0x00, 0x04, 0x20, 0x20, 0x00, 0x00, 0x00,
         ];
         let directory = parse_directory(&bytes);
 
@@ -219,9 +216,8 @@ mod tests {
     #[test]
     fn duplicate_semantic_fields_are_preserved_as_multiple_observations() {
         let bytes = [
-            0x00, 0x88, 0x10, 0x00, 0x00, 0x00,
-            0x02, 0x20, 0x44, 0x00, 0x00, 0x00,
-            0x02, 0x20, 0x43, 0x00, 0x00, 0x00,
+            0x00, 0x88, 0x10, 0x00, 0x00, 0x00, 0x02, 0x20, 0x44, 0x00, 0x00, 0x00, 0x02, 0x20,
+            0x43, 0x00, 0x00, 0x00,
         ];
         let directory = parse_directory(&bytes);
 
@@ -242,8 +238,7 @@ mod tests {
     #[test]
     fn same_id_with_non_u32_supported_wire_type_is_not_semantically_promoted() {
         let bytes = [
-            0x00, 0x88, 0x0A, 0x00, 0x00, 0x00,
-            0x02, 0x88, 0x04, 0x00, 0x00, 0x00,
+            0x00, 0x88, 0x0A, 0x00, 0x00, 0x00, 0x02, 0x88, 0x04, 0x00, 0x00, 0x00,
         ];
         let directory = parse_directory(&bytes);
 
