@@ -205,9 +205,7 @@ mod tests {
 
     #[test]
     fn parses_container_length_as_length_including_its_own_dword() {
-        let bytes = [
-            0x03, 0x90, 0x08, 0x00, 0x00, 0x00, 0xAA, 0xBB, 0xCC, 0xDD,
-        ];
+        let bytes = [0x03, 0x90, 0x08, 0x00, 0x00, 0x00, 0xAA, 0xBB, 0xCC, 0xDD];
         let mut cursor = ContentsCursor::new(StreamPath("/Contents".into()), &bytes);
 
         let block = parse_confirmed_block(&mut cursor).expect("контейнер должен читаться");
@@ -256,8 +254,8 @@ mod tests {
         let mut cursor =
             ContentsCursor::new(StreamPath("/Contents".into()), &[0x01, 0x21, 0xAA, 0xBB]);
 
-        let error =
-            parse_confirmed_block(&mut cursor).expect_err("неподтверждённый тип должен отклоняться");
+        let error = parse_confirmed_block(&mut cursor)
+            .expect_err("неподтверждённый тип должен отклоняться");
 
         assert_eq!(
             error,
@@ -274,13 +272,8 @@ mod tests {
         let bytes = [
             0xFF, 0xFF, 0x00, 0x88, 0x08, 0x00, 0x00, 0x00, 0xAA, 0xBB, 0xCC, 0xDD,
         ];
-        let mut cursor = ContentsCursor::bounded(
-            StreamPath("/Contents".into()),
-            &bytes,
-            2,
-            8,
-        )
-        .expect("bounded cursor должен создаваться");
+        let mut cursor = ContentsCursor::bounded(StreamPath("/Contents".into()), &bytes, 2, 8)
+            .expect("bounded cursor должен создаваться");
 
         let error = parse_confirmed_block(&mut cursor)
             .expect_err("контейнер не должен выходить за границы parent range");
