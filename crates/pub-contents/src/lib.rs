@@ -20,6 +20,17 @@ pub struct ContentsPreamble {
     pub serialization_revision_source: RawSpan,
 }
 
+/// Подтверждённые физические поля заголовка семейства 0x2C.
+///
+/// Этот тип намеренно отдельный от общего `ContentsPreamble`: у семейства
+/// 0x22 указатель на trailer находится по другому смещению.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Contents0x2cHeader {
+    pub preamble: ContentsPreamble,
+    pub trailer_offset: u32,
+    pub trailer_offset_source: RawSpan,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ContentsReadError {
     TooShort {
@@ -28,6 +39,14 @@ pub enum ContentsReadError {
         available: usize,
     },
     UnsupportedMagic([u8; 4]),
+    UnexpectedFamily {
+        expected: ContentsFamily,
+        found: ContentsFamily,
+    },
+    TrailerOffsetOutOfBounds {
+        offset: u32,
+        stream_len: usize,
+    },
 }
 
 impl fmt::Display for ContentsReadError {
@@ -45,6 +64,14 @@ impl fmt::Display for ContentsReadError {
                 f,
                 "неподдерживаемый маркер Contents: {:02X} {:02X} {:02X} {:02X}",
                 found[0], found[1], found[2], found[3]
+            ),
+            Self::UnexpectedFamily { expected, found } => write!(
+                f,
+                "неожиданное семейство Contents: ожидалось {expected:?}, найдено {found:?}"
+            ),
+            Self::TrailerOffsetOutOfBounds { offset, stream_len } => write!(
+                f,
+                "указатель trailer Contents выходит за границы потока: смещение {offset}, длина потока {stream_len}"
             ),
         }
     }
@@ -87,6 +114,42 @@ pub fn parse_preamble(
         family_source,
         serialization_revision,
         serialization_revision_source,
+    })
+}
+
+/// Читает подтверждённую физическую часть заголовка семейства 0x2C.
+///
+/// В проверенном 0x2C-корпусе little-endian u32 по `Contents+0x1A` указывает
+/// на начало trailer. Здесь значение только извлекается и проверяется на
+/// попадание внутрь исходного потока; внутренняя грамматика trailer этим
+/// вызовом не интерпретируется.
+pub fn parse_0x2c_header(
+    stream: StreamPath,
+    bytes: &[u8],
+) -> Result<Contents0x2cHeader, ContentsReadError> {
+    let preamble = parse_preamble(stream.clone(), bytes)?;
+    if preamble.family != ContentsFamily::Family0x2c {
+        return Err(ContentsReadError::UnexpectedFamily {
+            expected: ContentsFamily::Family0x2c,
+            found: preamble.family,
+        });
+    }
+
+    let mut cursor = ContentsCursor::new(stream, bytes);
+    cursor.take(0x1A)?;
+    let (trailer_offset, trailer_offset_source) = cursor.read_u32_le()?;
+
+    if u64::from(trailer_offset) >= bytes.len() as u64 {
+        return Err(ContentsReadError::TrailerOffsetOutOfBounds {
+            offset: trailer_offset,
+            stream_len: bytes.len(),
+        });
+    }
+
+    Ok(Contents0x2cHeader {
+        preamble,
+        trailer_offset,
+        trailer_offset_source,
     })
 }
 
@@ -269,6 +332,61 @@ mod tests {
                 offset: 12,
                 requested: 2,
                 available: 1,
+            })
+        );
+    }
+
+    #[test]
+    fn header_0x2c_reads_trailer_pointer_with_provenance() {
+        let stream = StreamPath("/Contents".into());
+        let mut bytes = vec![0; 64];
+        bytes[0..4].copy_from_slice(&CONTENTS_0X2C_MAGIC);
+        bytes[12..14].copy_from_slice(&0x0018u16.to_le_bytes());
+        bytes[0x1A..0x1E].copy_from_slice(&40u32.to_le_bytes());
+
+        let header = parse_0x2c_header(stream.clone(), &bytes)
+            .expect("заголовок 0x2C должен читаться");
+
+        assert_eq!(header.preamble.family, ContentsFamily::Family0x2c);
+        assert_eq!(header.preamble.serialization_revision, 0x0018);
+        assert_eq!(header.trailer_offset, 40);
+        assert_eq!(
+            header.trailer_offset_source,
+            RawSpan {
+                stream,
+                offset: 0x1A,
+                len: 4,
+            }
+        );
+    }
+
+    #[test]
+    fn header_0x2c_rejects_old_family() {
+        let mut bytes = vec![0; 64];
+        bytes[0..4].copy_from_slice(&CONTENTS_0X22_MAGIC);
+        bytes[12..14].copy_from_slice(&0x02CDu16.to_le_bytes());
+
+        assert_eq!(
+            parse_0x2c_header(StreamPath("/Contents".into()), &bytes),
+            Err(ContentsReadError::UnexpectedFamily {
+                expected: ContentsFamily::Family0x2c,
+                found: ContentsFamily::Family0x22,
+            })
+        );
+    }
+
+    #[test]
+    fn header_0x2c_rejects_trailer_pointer_outside_stream() {
+        let mut bytes = vec![0; 64];
+        bytes[0..4].copy_from_slice(&CONTENTS_0X2C_MAGIC);
+        bytes[12..14].copy_from_slice(&0x0018u16.to_le_bytes());
+        bytes[0x1A..0x1E].copy_from_slice(&64u32.to_le_bytes());
+
+        assert_eq!(
+            parse_0x2c_header(StreamPath("/Contents".into()), &bytes),
+            Err(ContentsReadError::TrailerOffsetOutOfBounds {
+                offset: 64,
+                stream_len: 64,
             })
         );
     }
