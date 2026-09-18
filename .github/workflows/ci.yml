@@ -1,4 +1,4 @@
-name: CI
+name: Основные проверки
 on:
   pull_request:
     paths: ["**/*.rs","**/Cargo.toml","Cargo.toml","Cargo.lock","rust-toolchain.toml"]
