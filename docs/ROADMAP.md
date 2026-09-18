@@ -1,16 +1,21 @@
-# Roadmap
+# Дорожная карта
 
-## M0 — repository and invariants
-Workspace, cheap CI, raw span/provenance primitives, CFB inventory, deterministic JSON.
+## M0 — репозиторий и инварианты
 
-## M1 — lossless 0x2C reader
-Contents tree; Quill TEXT/SYID/STRS and styles; Escher/FOPT; identity graph; unknown preservation.
+Workspace, дешёвый CI, примитивы исходных диапазонов и происхождения, перечень CFB, детерминированный JSON.
 
-## M2 — exceed current libmspub fidelity
-GeoText/WordArt, pGuides, pConnectionSites, pAdjustHandles, pInscribe, picture crop, fractional angles/rotations.
+## M1 — чтение 0x2C без потерь
 
-## M3 — surgical writer
-Dirty graph, selective projection rebuild, preserved unknowns, consistency validation, native Publisher open/resave validation.
+Дерево Contents; Quill TEXT/SYID/STRS и стили; Escher/FOPT; граф идентичности; сохранение неизвестных данных.
 
-## Later
-Legacy Publisher 97/2000, preset-shape rendering, full document generation.
+## M2 — превысить текущую точность libmspub
+
+GeoText/WordArt, pGuides, pConnectionSites, pAdjustHandles, pInscribe, обрезка изображений, дробные углы и вращения.
+
+## M3 — точечная запись
+
+Граф изменений, выборочная пересборка проекций, сохранение неизвестного состояния, проверка согласованности, проверка открытия и пересохранения в собственном Publisher.
+
+## Позднее
+
+Старые Publisher 97/2000, отображение предустановленных фигур, полное создание документов.
