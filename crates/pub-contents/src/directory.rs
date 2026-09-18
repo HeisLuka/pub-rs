@@ -41,17 +41,9 @@ impl Contents0x2cDirectorySlot {
 pub enum DirectoryReadError {
     Contents(ContentsReadError),
     Block(BlockReadError),
-    SpanTooLarge {
-        source: RawSpan,
-    },
-    UnexpectedSlotId {
-        offset: u64,
-        id: u8,
-    },
-    UnexpectedSlotType {
-        offset: u64,
-        block_type: u8,
-    },
+    SpanTooLarge { source: RawSpan },
+    UnexpectedSlotId { offset: u64, id: u8 },
+    UnexpectedSlotType { offset: u64, block_type: u8 },
 }
 
 impl fmt::Display for DirectoryReadError {
@@ -102,10 +94,9 @@ pub fn parse_confirmed_0x2c_directory(
     bytes: &[u8],
     source: RawSpan,
 ) -> Result<Contents0x2cDirectory, DirectoryReadError> {
-    let start =
-        usize::try_from(source.offset).map_err(|_| DirectoryReadError::SpanTooLarge {
-            source: source.clone(),
-        })?;
+    let start = usize::try_from(source.offset).map_err(|_| DirectoryReadError::SpanTooLarge {
+        source: source.clone(),
+    })?;
     let len = usize::try_from(source.len).map_err(|_| DirectoryReadError::SpanTooLarge {
         source: source.clone(),
     })?;
@@ -163,8 +154,9 @@ mod tests {
             0x00, 0x78, // seqNum 2: DUMMY
         ];
 
-        let directory = parse_confirmed_0x2c_directory(&bytes, directory_source(bytes.len() as u64))
-            .expect("позиционный directory должен читаться");
+        let directory =
+            parse_confirmed_0x2c_directory(&bytes, directory_source(bytes.len() as u64))
+                .expect("позиционный directory должен читаться");
 
         assert_eq!(directory.slots.len(), 3);
         assert!(matches!(
@@ -203,8 +195,9 @@ mod tests {
             0x00, 0x88, 0x04, 0x00, 0x00, 0x00, // ordinal 2
         ];
 
-        let directory = parse_confirmed_0x2c_directory(&bytes, directory_source(bytes.len() as u64))
-            .expect("directory должен читаться");
+        let directory =
+            parse_confirmed_0x2c_directory(&bytes, directory_source(bytes.len() as u64))
+                .expect("directory должен читаться");
 
         assert!(matches!(
             directory.slot(2),
@@ -259,13 +252,11 @@ mod tests {
 
         assert_eq!(
             error,
-            DirectoryReadError::Block(BlockReadError::Contents(
-                ContentsReadError::TooShort {
-                    offset: 8,
-                    requested: 4,
-                    available: 2,
-                }
-            ))
+            DirectoryReadError::Block(BlockReadError::Contents(ContentsReadError::TooShort {
+                offset: 8,
+                requested: 4,
+                available: 2,
+            }))
         );
     }
 }
