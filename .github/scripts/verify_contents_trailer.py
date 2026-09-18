@@ -2,6 +2,7 @@ import hashlib
 import io
 import struct
 import urllib.request
+from collections import Counter
 
 import olefile
 
@@ -87,6 +88,60 @@ def parse_block(data, offset, limit):
     raise ValueError(f"unsupported type 0x{block_type:02X} at {offset}")
 
 
+REFERENCE_FIXED_PAYLOAD_LENGTHS = {
+    0x08: 0,
+    0x0A: 0,
+    0x10: 2,
+    0x18: 2,
+    0x20: 4,
+    0x68: 4,
+    0xB8: 4,
+}
+
+
+def probe_reference_fields(data, start, end):
+    fields = []
+    cursor = start
+
+    while cursor < end:
+        if cursor + 2 > end:
+            return fields, {
+                "reason": "truncated_header",
+                "offset": cursor,
+                "remaining_hex": data[cursor:end].hex(" "),
+            }
+
+        field_id = data[cursor]
+        wire_type = data[cursor + 1]
+        payload_len = REFERENCE_FIXED_PAYLOAD_LENGTHS.get(wire_type)
+        if payload_len is None:
+            return fields, {
+                "reason": "unknown_wire_type",
+                "offset": cursor,
+                "field_id": field_id,
+                "wire_type": wire_type,
+                "remaining_hex": data[cursor:end].hex(" "),
+            }
+
+        payload_start = cursor + 2
+        payload_end = payload_start + payload_len
+        if payload_end > end:
+            return fields, {
+                "reason": "truncated_payload",
+                "offset": cursor,
+                "field_id": field_id,
+                "wire_type": wire_type,
+                "remaining_hex": data[cursor:end].hex(" "),
+            }
+
+        payload = data[payload_start:payload_end]
+        value = int.from_bytes(payload, "little") if payload else None
+        fields.append((field_id, wire_type, value, cursor, payload_end))
+        cursor = payload_end
+
+    return fields, None
+
+
 for name, url in FIXTURES:
     print()
     print("=" * 78)
@@ -154,6 +209,10 @@ for name, url in FIXTURES:
     empty = 0
     occupied = 0
     occupied_samples = []
+    reference_pairs = Counter()
+    reference_target_types = {0x02: Counter(), 0x04: Counter(), 0x05: Counter()}
+    reference_probe_failures = []
+    reference_probe_success = 0
 
     while slot_cursor < directory["content_end"]:
         slot = parse_block(contents, slot_cursor, directory["content_end"])
@@ -164,14 +223,31 @@ for name, url in FIXTURES:
             empty += 1
         elif slot["type"] == 0x88:
             occupied += 1
+            payload = contents[slot["content_start"] : slot["content_end"]]
             if len(occupied_samples) < 8:
-                payload = contents[slot["content_start"] : slot["content_end"]]
                 occupied_samples.append(
                     {
                         "seq_num": slots,
                         "slot_start": slot["start"],
                         "slot_end": slot["end"],
                         "payload_hex": payload.hex(" "),
+                    }
+                )
+
+            fields, failure = probe_reference_fields(
+                contents, slot["content_start"], slot["content_end"]
+            )
+            if failure is None:
+                reference_probe_success += 1
+                for field_id, wire_type, value, _, _ in fields:
+                    reference_pairs[(field_id, wire_type)] += 1
+                    if field_id in reference_target_types:
+                        reference_target_types[field_id][wire_type] += 1
+            else:
+                reference_probe_failures.append(
+                    {
+                        "seq_num": slots,
+                        **failure,
                     }
                 )
         else:
@@ -185,3 +261,17 @@ for name, url in FIXTURES:
     print("directory_occupied =", occupied)
     print("occupied_samples =", occupied_samples)
     print("directory_exact_end =", slot_cursor == directory["content_end"])
+    print("reference_probe_success =", reference_probe_success)
+    print("reference_probe_failure_count =", len(reference_probe_failures))
+    print("reference_probe_failures =", reference_probe_failures[:12])
+    print(
+        "reference_field_wire_pairs =",
+        sorted((field_id, wire_type, count) for (field_id, wire_type), count in reference_pairs.items()),
+    )
+    print(
+        "target_wire_types =",
+        {
+            f"0x{field_id:02X}": sorted(counter.items())
+            for field_id, counter in reference_target_types.items()
+        },
+    )
