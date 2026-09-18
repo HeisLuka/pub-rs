@@ -12,6 +12,14 @@ pub enum ContentsFamily {
     Family0x2c,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct ContentsPreamble {
+    pub family: ContentsFamily,
+    pub family_source: RawSpan,
+    pub serialization_revision: u16,
+    pub serialization_revision_source: RawSpan,
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ContentsReadError {
     TooShort {
@@ -56,6 +64,30 @@ pub fn detect_family(bytes: &[u8]) -> Result<ContentsFamily, ContentsReadError> 
         CONTENTS_0X2C_MAGIC => Ok(ContentsFamily::Family0x2c),
         other => Err(ContentsReadError::UnsupportedMagic(other)),
     }
+}
+
+/// Читает только подтверждённые поля физического префикса Contents.
+///
+/// `serialization_revision` описывает ревизию сериализации и не является
+/// точной маркетинговой версией Publisher.
+pub fn parse_preamble(
+    stream: StreamPath,
+    bytes: &[u8],
+) -> Result<ContentsPreamble, ContentsReadError> {
+    let mut cursor = ContentsCursor::new(stream, bytes);
+
+    let (magic, family_source) = cursor.take(4)?;
+    let family = detect_family(magic)?;
+
+    cursor.take(8)?;
+    let (serialization_revision, serialization_revision_source) = cursor.read_u16_le()?;
+
+    Ok(ContentsPreamble {
+        family,
+        family_source,
+        serialization_revision,
+        serialization_revision_source,
+    })
 }
 
 fn read_magic(bytes: &[u8]) -> Result<[u8; 4], ContentsReadError> {
@@ -179,6 +211,64 @@ mod tests {
                 offset: 0,
                 requested: 4,
                 available: 3,
+            })
+        );
+    }
+
+    #[test]
+    fn preamble_reads_family_and_serialization_revision_with_provenance() {
+        let stream = StreamPath("/Contents".into());
+        let mut bytes = vec![0; 14];
+        bytes[0..4].copy_from_slice(&CONTENTS_0X2C_MAGIC);
+        bytes[12..14].copy_from_slice(&0x001Au16.to_le_bytes());
+
+        let preamble =
+            parse_preamble(stream.clone(), &bytes).expect("префикс Contents должен читаться");
+
+        assert_eq!(preamble.family, ContentsFamily::Family0x2c);
+        assert_eq!(preamble.serialization_revision, 0x001A);
+        assert_eq!(
+            preamble.family_source,
+            RawSpan {
+                stream: stream.clone(),
+                offset: 0,
+                len: 4,
+            }
+        );
+        assert_eq!(
+            preamble.serialization_revision_source,
+            RawSpan {
+                stream,
+                offset: 12,
+                len: 2,
+            }
+        );
+    }
+
+    #[test]
+    fn preamble_keeps_old_family_revision_family_scoped() {
+        let mut bytes = vec![0; 14];
+        bytes[0..4].copy_from_slice(&CONTENTS_0X22_MAGIC);
+        bytes[12..14].copy_from_slice(&0x02CDu16.to_le_bytes());
+
+        let preamble = parse_preamble(StreamPath("/Contents".into()), &bytes)
+            .expect("префикс старого Contents должен читаться");
+
+        assert_eq!(preamble.family, ContentsFamily::Family0x22);
+        assert_eq!(preamble.serialization_revision, 0x02CD);
+    }
+
+    #[test]
+    fn short_preamble_reports_revision_boundary() {
+        let mut bytes = vec![0; 13];
+        bytes[0..4].copy_from_slice(&CONTENTS_0X2C_MAGIC);
+
+        assert_eq!(
+            parse_preamble(StreamPath("/Contents".into()), &bytes),
+            Err(ContentsReadError::TooShort {
+                offset: 12,
+                requested: 2,
+                available: 1,
             })
         );
     }
