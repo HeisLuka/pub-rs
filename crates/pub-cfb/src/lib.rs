@@ -30,16 +30,15 @@ pub struct CfbInventory {
 
 pub fn inspect_path(path: impl AsRef<Path>) -> Result<CfbInventory> {
     let path = path.as_ref();
-    let file = File::open(path)
-        .with_context(|| format!("не удалось открыть файл {}", path.display()))?;
+    let file =
+        File::open(path).with_context(|| format!("не удалось открыть файл {}", path.display()))?;
 
     inspect_reader(file)
         .with_context(|| format!("не удалось разобрать CFB-файл {}", path.display()))
 }
 
 pub fn inspect_reader<R: Read + Seek>(reader: R) -> Result<CfbInventory> {
-    let compound =
-        cfb::CompoundFile::open(reader).context("не удалось разобрать CFB-контейнер")?;
+    let compound = cfb::CompoundFile::open(reader).context("не удалось разобрать CFB-контейнер")?;
 
     let mut entries: Vec<_> = compound
         .walk()
@@ -164,7 +163,9 @@ mod tests {
             .expect_err("произвольные байты не должны считаться CFB");
 
         assert!(
-            error.to_string().contains("не удалось разобрать CFB-контейнер"),
+            error
+                .to_string()
+                .contains("не удалось разобрать CFB-контейнер"),
             "неожиданная ошибка: {error:#}"
         );
     }
