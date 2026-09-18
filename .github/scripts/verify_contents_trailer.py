@@ -164,22 +164,16 @@ for name, url in FIXTURES:
             empty += 1
         elif slot["type"] == 0x88:
             occupied += 1
-            if len(occupied_samples) < 5:
-                fields = []
-                field_cursor = slot["content_start"]
-                while field_cursor < slot["content_end"]:
-                    field = parse_block(contents, field_cursor, slot["content_end"])
-                    fields.append(
-                        (
-                            field["id"],
-                            field["type"],
-                            field.get("value"),
-                            field["start"],
-                            field["end"],
-                        )
-                    )
-                    field_cursor = field["end"]
-                occupied_samples.append((slots, fields))
+            if len(occupied_samples) < 8:
+                payload = contents[slot["content_start"] : slot["content_end"]]
+                occupied_samples.append(
+                    {
+                        "seq_num": slots,
+                        "slot_start": slot["start"],
+                        "slot_end": slot["end"],
+                        "payload_hex": payload.hex(" "),
+                    }
+                )
         else:
             raise ValueError(f"unexpected slot type at ordinal {slots}: {slot}")
 
