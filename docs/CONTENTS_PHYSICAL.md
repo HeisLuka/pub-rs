@@ -34,6 +34,22 @@
 
 Основание: Canonical Claim PUB-C-120, version fixture lattice и контролируемые 2007→2010 сравнения.
 
+## Указатель trailer в 0x2C
+
+Для проверенного позднего корпуса family 0x2C little-endian `u32` по `Contents+0x1A` указывает на начало trailer.
+
+Подтверждение не основано на одном исходнике:
+
+- directory-authoritative census прошёл по 19 поздним Apache POI PUB через этот физический указатель;
+- прямой собственный разбор `Sample.pub`: размер Contents 11 490, trailer offset 9 578, trailer length 1 912, 45 chunk references;
+- точный PRONOM Publisher 2002: размер Contents 5 544, trailer offset 4 230, 24 chunk references.
+
+Код обязан проверять, что значение указателя попадает внутрь потока, прежде чем его разыменовывать.
+
+Это правило **только для 0x2C**. В подтверждённом 0x22 trailer pointer расположен по `Contents+0x16`.
+
+Основание: Canonical Claim PUB-C-121, OBS-029A, OBS-006B и точный PRONOM Publisher 2002.
+
 ## Что подтверждено для нативных 0x2C Publisher 2002/2003
 
 На точных PRONOM-файлах подтверждено:
@@ -56,7 +72,6 @@
 
 Пока не кодируются как универсальная истина:
 
-- trailer pointer по `Contents + 0x1A` для всего семейства 0x2C;
 - название trailer directory как «OPL Array»;
 - политика повторного использования пустых слотов;
 - универсальная таблица смыслов block type только по исходному коду libmspub;
@@ -69,9 +84,11 @@
 
 - точное определение family marker;
 - `ContentsPreamble` с family и serialization revision;
-- отдельный `RawSpan` для family marker и revision;
+- отдельный `Contents0x2cHeader` с проверенным trailer offset;
+- отдельный `RawSpan` для family marker, revision и trailer pointer;
+- обязательную проверку границ trailer pointer;
 - `ContentsCursor`, который не читает за границы;
 - точный `RawSpan` для каждого чтения;
 - никакого вычисления маркетинговой версии Publisher.
 
-Следующий физический шаг должен добавляться только после отдельного подтверждения конкретной грамматики trailer/header/container.
+Следующий физический шаг должен добавляться только после отдельного подтверждения конкретной грамматики trailer/container.
