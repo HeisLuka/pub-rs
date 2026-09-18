@@ -6,7 +6,15 @@
 - [ ] Existing implementation comparison
 - [ ] Hypothesis only (clearly marked)
 
+### Claim discipline
+- **Status:**
+- **Scope / binary family:**
+- **Exact evidence / fixture / spec section:**
+- **Do not infer:**
+
 ## Preservation check
 - [ ] Unknown/raw state is preserved or intentionally unaffected
 - [ ] New behavior has a regression test where practical
 - [ ] Renderer/export assumptions did not leak into the canonical model
+- [ ] No identity namespaces were merged without demonstrated evidence
+- [ ] No family-specific fact was promoted to a universal rule
