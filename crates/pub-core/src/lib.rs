@@ -12,6 +12,36 @@ use std::sync::Arc;
 )]
 pub struct StreamPath(pub String);
 
+/// Явный objectId из старого семейства Contents 0x22.
+///
+/// Для проверенных Publisher 98/2000 каталог хранит этот идентификатор как
+/// отдельное 16-битное значение. Этот тип нельзя использовать как seqNum
+/// семейства 0x2C.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+pub struct Contents0x22ObjectId(pub u16);
+
+/// Один идентификатор из массива Quill SYID.
+///
+/// В проверенной грамматике SYID элементы массива хранятся как 32-битные
+/// значения. Семантические связи с Contents должны добавляться отдельно и
+/// только для подтверждённой области действия.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+pub struct QuillSyid(pub u32);
+
+/// Поздний Publisher Oid в подтверждённом 8-байтном представлении.
+///
+/// Oid является отдельным пространством идентичности. Его нельзя приравнивать
+/// к физическому object handle / seqNum, и одинаковый Oid может встречаться у
+/// разных физических объектов сценария.
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
+)]
+pub struct PublisherOid(pub [u8; 8]);
+
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RawSpan {
     pub stream: StreamPath,
@@ -117,5 +147,16 @@ mod tests {
             len: 2,
         };
         assert_eq!(raw.bytes(&out_of_bounds), None);
+    }
+
+    #[test]
+    fn identity_namespaces_remain_distinct_types() {
+        let old_id = Contents0x22ObjectId(7);
+        let syid = QuillSyid(7);
+        let oid = PublisherOid([0; 8]);
+
+        assert_eq!(old_id.0, 7);
+        assert_eq!(syid.0, 7);
+        assert_eq!(oid.0, [0; 8]);
     }
 }
