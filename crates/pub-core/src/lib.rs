@@ -2,11 +2,11 @@ use serde::{Deserialize, Serialize};
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-/// Logical path of a stream inside the publication container.
+/// Логический путь потока внутри контейнера публикации.
 ///
-/// This is deliberately not called `StreamId`: MS-CFB uses "stream ID" for
-/// the numeric directory-entry identifier. A path is an adapter-level locator,
-/// not native Publisher object identity.
+/// Тип намеренно не называется `StreamId`: в MS-CFB термин «stream ID»
+/// обозначает числовой идентификатор записи каталога. Путь — это адрес
+/// на уровне адаптера контейнера, а не собственная идентичность объекта Publisher.
 #[derive(
     Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize,
 )]
@@ -25,11 +25,12 @@ impl RawSpan {
     }
 }
 
-/// Immutable raw stream bytes retained for provenance and lossless recovery.
+/// Неизменяемые исходные байты потоков для происхождения данных и
+/// восстановления без потерь.
 ///
-/// Parsers may decode higher-level structures from these bytes, but a
-/// `RawSpan` remains meaningful only while the corresponding
-/// `RawPublication` is retained.
+/// Парсеры могут декодировать из этих байтов структуры более высокого уровня,
+/// но `RawSpan` имеет смысл только пока сохранён соответствующий
+/// `RawPublication`.
 #[derive(Debug, Clone, Default)]
 pub struct RawPublication {
     streams: BTreeMap<StreamPath, Arc<[u8]>>,
@@ -59,10 +60,10 @@ impl RawPublication {
     }
 }
 
-/// A value decoded from one contiguous raw span.
+/// Значение, декодированное из одного непрерывного участка исходных байтов.
 ///
-/// Derived semantic values that depend on multiple records or projections
-/// should use explicit provenance collections instead of this helper.
+/// Производные семантические значения, которые зависят от нескольких записей
+/// или проекций, должны хранить происхождение явно, а не через этот вспомогательный тип.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct Decoded<T> {
     pub value: T,
@@ -70,10 +71,10 @@ pub struct Decoded<T> {
     pub raw: Vec<u8>,
 }
 
-/// State of decoding a raw item.
+/// Состояние декодирования одного сырого элемента.
 ///
-/// The unknown discriminator is generic on purpose: different PUB
-/// subformats use different native key spaces and widths.
+/// Тип неизвестного признака сделан обобщённым намеренно: разные части PUB
+/// используют разные пространства ключей и разную ширину идентификаторов.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ParseState<T, I> {
     Known(Decoded<T>),
