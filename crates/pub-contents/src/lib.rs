@@ -344,8 +344,8 @@ mod tests {
         bytes[12..14].copy_from_slice(&0x0018u16.to_le_bytes());
         bytes[0x1A..0x1E].copy_from_slice(&40u32.to_le_bytes());
 
-        let header = parse_0x2c_header(stream.clone(), &bytes)
-            .expect("заголовок 0x2C должен читаться");
+        let header =
+            parse_0x2c_header(stream.clone(), &bytes).expect("заголовок 0x2C должен читаться");
 
         assert_eq!(header.preamble.family, ContentsFamily::Family0x2c);
         assert_eq!(header.preamble.serialization_revision, 0x0018);
