@@ -1,27 +1,30 @@
-# Provenance policy
+# Правила происхождения знаний
 
-Format knowledge should identify its source, confidence and scope.
+Для знания о формате должны быть указаны источник, степень уверенности и область действия.
 
-Priority: Microsoft/Open Specifications; controlled Publisher fixtures and binary diffs; independent corpora/implementations; existing open-source implementations; explicit hypotheses.
+Приоритет источников: спецификации Microsoft/Open Specifications; контролируемые файлы Publisher и двоичные сравнения; независимые наборы файлов и реализации; существующие открытые реализации; явно помеченные гипотезы.
 
-## Foundation admission rule
+## Допуск в фундаментальный код
 
-A fact may enter foundation code only when all of the following are explicit:
+Факт может попасть в фундаментальный код только тогда, когда явно указаны:
 
-- **source** — where the fact comes from;
-- **status** — confirmed fact, implementation fact, hypothesis, open question, etc.;
-- **scope** — the binary family/version/object classes for which it is supported;
-- **guardrail** — what must not be inferred from the evidence.
+- **источник** — откуда получен факт;
+- **статус** — подтверждённый факт, факт реализации, гипотеза, открытый вопрос и т. п.;
+- **область действия** — бинарное семейство, версия или классы объектов, для которых факт подтверждён;
+- **ограничение вывода** — что именно нельзя заключать из имеющегося доказательства.
 
-Implementation facts about another parser are not automatically facts about native Publisher.
+Факт о поведении другой реализации не становится автоматически фактом о собственном поведении Publisher.
 
-If evidence proves only framing, width, offsets or raw flag layout, the code should preserve that physical fact without inventing stronger semantic names.
+Если доказаны только границы записи, ширина поля, смещение или расположение сырых флагов, код должен сохранять именно этот физический факт, не придумывая более сильное семантическое имя.
 
 ## libmspub
-libmspub is MPL-2.0 and is used as a behavioral/reference oracle. Do not mechanically translate substantial source or large tables into Apache-2.0 files without reviewing licensing consequences.
 
-## Unknown data
-Unknown does not mean disposable. Preserve raw identifiers, flags, payloads and source ranges. Prefer references into the immutable raw backing when possible so future decoders can reinterpret the original bytes.
+libmspub распространяется по MPL-2.0 и используется как поведенческий эталон и справочная реализация. Нельзя механически переносить существенные фрагменты исходного кода или большие таблицы в файлы Apache-2.0 без отдельной проверки лицензионных последствий.
 
-## Fixtures
-Committed fixtures need origin, redistribution rationale, SHA-256, known format family and the behavior they prove. Large corpora should normally stay external and be referenced by manifest/hash.
+## Неизвестные данные
+
+Неизвестное не означает ненужное. Сохраняются исходные идентификаторы, флаги, полезная нагрузка и диапазоны источника. Где возможно, предпочтительны ссылки на неизменяемую исходную подложку, чтобы будущие декодеры могли заново интерпретировать первоначальные байты.
+
+## Тестовые файлы
+
+Для каждого файла, добавленного в репозиторий, нужны происхождение, основание для распространения, SHA-256, известное семейство формата и описание проверяемого поведения. Большие наборы файлов обычно должны храниться вне репозитория и подключаться через перечень и хэши.
