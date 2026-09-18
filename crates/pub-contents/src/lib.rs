@@ -2,6 +2,13 @@ use pub_core::{RawSpan, StreamPath};
 use serde::{Deserialize, Serialize};
 use std::fmt;
 
+mod block;
+
+pub use block::{
+    BLOCK_TYPE_CONTAINER_88, BLOCK_TYPE_CONTAINER_90, BLOCK_TYPE_DUMMY, BLOCK_TYPE_U32,
+    BlockReadError, RawContentsBlock, RawContentsBlockBody, parse_confirmed_block,
+};
+
 pub const CONTENTS_0X22_MAGIC: [u8; 4] = [0xE8, 0xAC, 0x22, 0x00];
 pub const CONTENTS_0X2C_MAGIC: [u8; 4] = [0xE8, 0xAC, 0x2C, 0x00];
 
@@ -175,6 +182,7 @@ pub struct ContentsCursor<'a> {
     stream: StreamPath,
     bytes: &'a [u8],
     position: usize,
+    limit: usize,
 }
 
 impl<'a> ContentsCursor<'a> {
@@ -183,7 +191,34 @@ impl<'a> ContentsCursor<'a> {
             stream,
             bytes,
             position: 0,
+            limit: bytes.len(),
         }
+    }
+
+    /// Создаёт курсор, жёстко ограниченный заданным диапазоном исходного потока.
+    ///
+    /// Позиции и RawSpan остаются абсолютными относительно исходного Contents.
+    pub fn bounded(
+        stream: StreamPath,
+        bytes: &'a [u8],
+        start: usize,
+        len: usize,
+    ) -> Result<Self, ContentsReadError> {
+        let end = start
+            .checked_add(len)
+            .filter(|end| *end <= bytes.len())
+            .ok_or_else(|| ContentsReadError::TooShort {
+                offset: start,
+                requested: len,
+                available: bytes.len().saturating_sub(start),
+            })?;
+
+        Ok(Self {
+            stream,
+            bytes,
+            position: start,
+            limit: end,
+        })
     }
 
     pub fn position(&self) -> usize {
@@ -191,7 +226,7 @@ impl<'a> ContentsCursor<'a> {
     }
 
     pub fn remaining(&self) -> usize {
-        self.bytes.len().saturating_sub(self.position)
+        self.limit.saturating_sub(self.position)
     }
 
     pub fn read_u8(&mut self) -> Result<(u8, RawSpan), ContentsReadError> {
@@ -216,7 +251,7 @@ impl<'a> ContentsCursor<'a> {
         let start = self.position;
         let end = start
             .checked_add(len)
-            .filter(|end| *end <= self.bytes.len())
+            .filter(|end| *end <= self.limit)
             .ok_or_else(|| ContentsReadError::TooShort {
                 offset: start,
                 requested: len,
