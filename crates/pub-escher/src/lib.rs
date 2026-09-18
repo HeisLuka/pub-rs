@@ -1,11 +1,12 @@
 use pub_core::RawSpan;
 use serde::{Deserialize, Serialize};
 
-/// Raw OfficeArtFOPTE entry plus its complex payload, when present.
+/// Сырая запись OfficeArtFOPTE и её сложные данные, если они присутствуют.
 ///
-/// `op` preserves the 32-bit field exactly. Its semantic interpretation is
-/// property-specific. When fComplex is set, MS-ODRAW defines `op` as the
-/// byte size of the complex property data rather than the scalar value.
+/// Поле `op` сохраняется как исходное 32-битное значение. Его смысл зависит
+/// от конкретного свойства. При установленном `fComplex` спецификация
+/// MS-ODRAW определяет `op` как размер сложных данных в байтах, а не как
+/// обычное скалярное значение свойства.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Fopte {
     pub opid: u16,
@@ -27,9 +28,9 @@ impl Fopte {
         self.opid & 0x8000 != 0
     }
 
-    /// True only when the fBid bit is semantically applicable.
+    /// Возвращает true только когда бит fBid имеет смысл для данной записи.
     ///
-    /// MS-ODRAW requires fBid to be ignored for complex properties.
+    /// MS-ODRAW требует игнорировать fBid у сложных свойств.
     pub fn op_is_blip_id(&self) -> bool {
         self.f_bid() && !self.f_complex()
     }
