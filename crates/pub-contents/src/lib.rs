@@ -4,15 +4,21 @@ use std::fmt;
 
 mod block;
 mod directory;
+mod document;
 mod reference;
 
 pub use block::{
-    BLOCK_TYPE_CONTAINER_88, BLOCK_TYPE_CONTAINER_90, BLOCK_TYPE_DUMMY, BLOCK_TYPE_U32,
-    BlockReadError, RawContentsBlock, RawContentsBlockBody, parse_confirmed_block,
+    BLOCK_TYPE_CONTAINER_88, BLOCK_TYPE_CONTAINER_90, BLOCK_TYPE_CONTAINER_A0,
+    BLOCK_TYPE_DUMMY, BLOCK_TYPE_HANDLE_U32, BLOCK_TYPE_U32, BlockReadError, RawContentsBlock,
+    RawContentsBlockBody, parse_confirmed_block,
 };
 pub use directory::{
     Contents0x2cDirectory, Contents0x2cDirectorySlot, DirectoryReadError,
     parse_confirmed_0x2c_directory,
+};
+pub use document::{
+    DOCUMENT_PAGE_LIST_ID, DocumentPageList, DocumentPageListEntry, DocumentPageListReadError,
+    parse_confirmed_document_page_list,
 };
 pub use reference::{
     CHUNK_REFERENCE_OFFSET_ID, CHUNK_REFERENCE_PARENT_SEQ_NUM_ID, CHUNK_REFERENCE_RAW_TYPE_ID,
