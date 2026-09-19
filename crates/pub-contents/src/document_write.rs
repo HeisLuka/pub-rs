@@ -146,7 +146,10 @@ pub fn plan_confirmed_document_sequence_permutation(
     let stream = page_list.block.source.stream.clone();
     let mut patches = Vec::new();
 
-    for (entry, replacement_handle) in page_list.entries.iter().zip(desired_handles.iter().copied())
+    for (entry, replacement_handle) in page_list
+        .entries
+        .iter()
+        .zip(desired_handles.iter().copied())
     {
         if entry.handle_source.len != 4 {
             return Err(DocumentSequencePermutationError::UnexpectedHandleSpan {
@@ -215,11 +218,12 @@ pub fn apply_confirmed_document_sequence_permutation(
                 source: patch.source.clone(),
             }
         })?;
-        let end = start.checked_add(4).ok_or_else(|| {
-            DocumentSequencePermutationError::SpanTooLarge {
-                source: patch.source.clone(),
-            }
-        })?;
+        let end =
+            start
+                .checked_add(4)
+                .ok_or_else(|| DocumentSequencePermutationError::SpanTooLarge {
+                    source: patch.source.clone(),
+                })?;
         let current = bytes.get(start..end).ok_or_else(|| {
             DocumentSequencePermutationError::SpanOutOfBounds {
                 source: patch.source.clone(),
@@ -257,9 +261,7 @@ fn handle_multiset(handles: &[u32]) -> BTreeMap<u32, usize> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        ContentsCursor, parse_confirmed_block, parse_confirmed_document_page_list,
-    };
+    use crate::{ContentsCursor, parse_confirmed_block, parse_confirmed_document_page_list};
 
     fn parse_outer(bytes: &[u8]) -> crate::RawContentsBlock {
         let mut cursor = ContentsCursor::new(StreamPath("/Contents".into()), bytes);
