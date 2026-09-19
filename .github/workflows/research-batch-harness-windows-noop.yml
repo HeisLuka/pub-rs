@@ -1,0 +1,152 @@
+name: Research — Windows no-op runtime envelope
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  windows-noop:
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Забрать ветку
+        uses: actions/checkout@v5
+
+      - name: Скачать exact Parker baseline
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $source = Join-Path $env:RUNNER_TEMP "parker-is.pub"
+          curl.exe --fail --location --retry 3 --retry-delay 2 --user-agent "pub-rs-research-harness/1" --output $source "https://steve-parker.org/articles/ms_publisher/8/is.pub"
+          if ($LASTEXITCODE -ne 0) {
+            throw "Не удалось скачать exact Parker baseline."
+          }
+          $item = Get-Item -LiteralPath $source
+          if ($item.Length -ne 65536) {
+            throw "Неверный размер Parker baseline: $($item.Length)"
+          }
+          $actual = (Get-FileHash -LiteralPath $source -Algorithm SHA256).Hash.ToLowerInvariant()
+          $expected = "26b71f6686a5a9c25b576d97bee88c00e983dba04bd6e98ff305b6bc3f95b935"
+          if ($actual -ne $expected) {
+            throw "SHA-256 Parker baseline расходится: actual=$actual expected=$expected"
+          }
+
+      - name: Выполнить no-op envelope в Windows PowerShell 5.1
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $source = Join-Path $env:RUNNER_TEMP "parker-is.pub"
+          $out = Join-Path $env:RUNNER_TEMP "pub-runtime-out"
+          $legacyPowerShell = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+
+          if (-not (Test-Path -LiteralPath $legacyPowerShell -PathType Leaf)) {
+            throw "Windows PowerShell 5.1 не найден: $legacyPowerShell"
+          }
+
+          & $legacyPowerShell -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\tools\windows\pub-runtime\Invoke-PubRuntimeCase.ps1" -ExperimentId "BATCH-HARNESS-01" -CaseId "windows-noop" -SourcePub $source -SourceFixtureId "VAL-PARKER-BASELINE" -AdapterScript ".\tools\windows\pub-runtime\adapters\Invoke-NoopAdapter.ps1" -SnapshotId "CI-WINDOWS-NO-PUBLISHER" -Operation "Проверить immutable run envelope без native Publisher" -OutputRoot $out
+          $legacyExitCode = $LASTEXITCODE
+
+          if ($legacyExitCode -ne 0) {
+            throw "No-op envelope в Windows PowerShell 5.1 завершился с exit code $legacyExitCode"
+          }
+
+          $caseRoot = Join-Path $out "BATCH-HARNESS-01\windows-noop"
+          $runs = @(Get-ChildItem -LiteralPath $caseRoot -Directory)
+          if ($runs.Count -ne 1) {
+            throw "Ожидался ровно один immutable run directory, найдено: $($runs.Count)"
+          }
+          $runDir = $runs[0].FullName
+
+          $requiredFiles = @(
+            "environment.json",
+            "fixture-manifest.json",
+            "operation.json",
+            "adapter-result.json",
+            "run-manifest.json",
+            "hashes.sha256",
+            "input\source.pub",
+            "logs\noop-result.json",
+            "meta\run-context.json"
+          )
+          foreach ($relative in $requiredFiles) {
+            $path = Join-Path $runDir $relative
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+              throw "Отсутствует обязательный artifact: $relative"
+            }
+          }
+
+          foreach ($relative in @("oracle", "output", "inspect", "assets", "logs", "meta", "input")) {
+            $path = Join-Path $runDir $relative
+            if (-not (Test-Path -LiteralPath $path -PathType Container)) {
+              throw "Отсутствует обязательный каталог: $relative"
+            }
+          }
+
+          $environment = Get-Content -LiteralPath (Join-Path $runDir "environment.json") -Raw | ConvertFrom-Json
+          if ([string]$environment.schema -ne "pub-runtime/environment/v2") {
+            throw "Неожиданная environment schema: $($environment.schema)"
+          }
+
+          $adapter = Get-Content -LiteralPath (Join-Path $runDir "adapter-result.json") -Raw | ConvertFrom-Json
+          if ([string]$adapter.status -ne "ok" -or [int]$adapter.exit_code -ne 0) {
+            throw "No-op adapter не завершился успешно."
+          }
+
+          $manifest = Get-Content -LiteralPath (Join-Path $runDir "run-manifest.json") -Raw | ConvertFrom-Json
+          if ([string]$manifest.status -ne "ok") {
+            throw "Run manifest status != ok"
+          }
+          if ([string]$manifest.source_fixture_id -ne "VAL-PARKER-BASELINE") {
+            throw "Run manifest потерял canonical source_fixture_id."
+          }
+          if ([string]$manifest.source_sha256 -ne "26b71f6686a5a9c25b576d97bee88c00e983dba04bd6e98ff305b6bc3f95b935") {
+            throw "Run manifest source SHA-256 расходится."
+          }
+          if ([bool]$manifest.lab_environment_bound) {
+            throw "Infrastructure-only no-op не должен изображать LAB-ENV binding."
+          }
+
+          $copied = Join-Path $runDir "input\source.pub"
+          $copiedHash = (Get-FileHash -LiteralPath $copied -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($copiedHash -ne [string]$manifest.source_sha256) {
+            throw "Bound input/source.pub изменился относительно run manifest."
+          }
+
+          $hashList = @{}
+          foreach ($line in Get-Content -LiteralPath (Join-Path $runDir "hashes.sha256")) {
+            if ($line -notmatch '^([0-9a-f]{64})  (.+)$') {
+              throw "Некорректная строка hashes.sha256: $line"
+            }
+            $hashList[$Matches[2]] = $Matches[1]
+          }
+
+          $allFiles = @(Get-ChildItem -LiteralPath $runDir -Recurse -File | Where-Object { $_.Name -ne "hashes.sha256" })
+          if ($hashList.Count -ne $allFiles.Count) {
+            throw "hashes.sha256 покрывает $($hashList.Count) файлов, фактически $($allFiles.Count)"
+          }
+          foreach ($file in $allFiles) {
+            $relative = $file.FullName.Substring($runDir.Length).TrimStart([char[]]"\/").Replace('\', '/')
+            if (-not $hashList.ContainsKey($relative)) {
+              throw "hashes.sha256 не содержит artifact: $relative"
+            }
+            $actual = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne [string]$hashList[$relative]) {
+              throw "Hash mismatch для $relative"
+            }
+          }
+
+          Write-Host "WINDOWS_NOOP_RUN_DIR=$runDir"
+          Write-Host "WINDOWS_NOOP_ARTIFACT_COUNT=$($allFiles.Count)"
+          Write-Host "WINDOWS_NOOP_RESULT=OK"
+
+      - name: Сохранить run envelope как CI artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: pub-runtime-windows-noop
+          path: ${{ runner.temp }}\pub-runtime-out
+          if-no-files-found: error
+          retention-days: 7
