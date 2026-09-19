@@ -74,7 +74,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\windows\pub-runtime\Invoke-PubR
 1. на clean snapshot запустить `Get-PubLabEnvironment.ps1`;
 2. убедиться, что его `comparison.json` имеет `stable=true`;
 3. передать этот exact файл через `-LabEnvironmentComparison` или переменную `PUB_LAB_ENV_COMPARISON`;
-4. envelope проверит schema, snapshot ID, единственный stable fingerprint, минимум два capture, bind'ит comparison + capture JSON в `meta/lab-environment/` и сверит текущий runtime projection с одним из bound captures.
+4. envelope проверит schema, snapshot ID, единственный stable fingerprint, минимум два capture, bind'ит comparison + capture JSON в `meta/lab-environment/` и заново снимет тот же полный stable projection: OS/bitness, PowerShell, locale/codepage/timezone, default printer, Publisher COM identity, hashes/versions/PE timestamps Publisher modules и font-set fingerprint. Этот fingerprint обязан byte-for-byte совпасть с bound preflight capture.
 
 Пример:
 
@@ -90,7 +90,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\windows\pub-runtime\Invoke-PubR
   -RequirePublisher
 ```
 
-Если LAB-ENV binding отсутствует, нестабилен, относится к другому snapshot label или текущий runtime projection отличается от preflight capture, native run прекращается до adapter. Если COM недоступен, действует тот же fail-closed путь.
+Если LAB-ENV binding отсутствует, нестабилен, относится к другому snapshot label или текущий полный stable fingerprint отличается от preflight capture, native run прекращается до adapter. Если COM недоступен, действует тот же fail-closed путь.
 
 Для stacked wrappers, которые пока не имеют отдельного параметра, можно задать:
 
