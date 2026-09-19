@@ -49,7 +49,7 @@ C:\pub-lab\batch-01\
   ...
 ```
 
-Отсутствующий `bytes_pending` файл выводится как `MISSING`, но не превращается в выдуманный hash.
+Отсутствующий `bytes_pending` файл выводится как `MISSING_PENDING` и сам по себе не делает bundle hash-invalid. Отсутствующий `pinned` / `external_pinned` выводится как `MISSING_REQUIRED` и является ошибкой. Если pending-файл уже появился локально, его size/SHA-256 всё равно проверяются.
 
 ## Guardrail
 
@@ -60,7 +60,8 @@ C:\pub-lab\batch-01\
 
 Для runtime adapters pin'ятся не только bytes, но и locator contract:
 
-- alignment fixtures: `PUB_ORACLE_ID=ALIGN_TARGET`;
+- explicit alignment fixture и отдельно pinned tagged derivatives: `PUB_ORACLE_ID=ALIGN_TARGET`;
+- exact upstream `ALIGN-STYLE-TOPOLOGY-BASE` tag не требует и использует только SHA/name/text/alignment fallback contract;
 - story fixtures: `PUB_ORACLE_ID=STORY_A` и `PUB_ORACLE_ID=STORY_B`.
 
 Story family использует **два** pinned source states:
