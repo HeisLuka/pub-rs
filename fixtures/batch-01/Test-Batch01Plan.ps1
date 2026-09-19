@@ -6,7 +6,7 @@
     [string]$PlanPath = "",
 
     [Parameter(Mandatory = $false)]
-    [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path,
+    [string]$RepoRoot = "",
 
     [Parameter(Mandatory = $false)]
     [string]$FixtureRoot = "",
@@ -26,7 +26,7 @@ if ([string]::IsNullOrWhiteSpace($PlanPath)) {
     $PlanPath = Join-Path $PSScriptRoot "run-plan.json"
 }
 if ([string]::IsNullOrWhiteSpace($RepoRoot)) {
-    $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\\..")).Path
+    $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 }
 
 $manifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
