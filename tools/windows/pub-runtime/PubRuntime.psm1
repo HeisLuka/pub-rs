@@ -156,6 +156,161 @@ function Get-PubPublisherIdentity {
     }
 }
 
+
+function Get-PubTextSha256 {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Text
+    )
+
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $bytes = [System.Text.Encoding]::UTF8.GetBytes($Text)
+        $hash = $sha.ComputeHash($bytes)
+        return ([BitConverter]::ToString($hash)).Replace("-", "").ToLowerInvariant()
+    }
+    finally {
+        $sha.Dispose()
+    }
+}
+
+function Get-PubPeTimestamp {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    $stream = [System.IO.File]::Open(
+        $Path,
+        [System.IO.FileMode]::Open,
+        [System.IO.FileAccess]::Read,
+        [System.IO.FileShare]::ReadWrite
+    )
+    $reader = New-Object System.IO.BinaryReader($stream)
+
+    try {
+        $stream.Position = 0x3C
+        $peOffset = $reader.ReadInt32()
+        $stream.Position = $peOffset + 8
+        $seconds = $reader.ReadUInt32()
+        return [DateTimeOffset]::FromUnixTimeSeconds([int64]$seconds).ToUniversalTime().ToString("o")
+    }
+    finally {
+        $reader.Close()
+        $stream.Close()
+    }
+}
+
+function Get-PubModuleRecord {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$Path
+    )
+
+    $record = Get-PubFileRecord $Path
+    $item = Get-Item -LiteralPath $record.path
+    $version = $item.VersionInfo
+
+    return [ordered]@{
+        name = $item.Name
+        path = $record.path
+        size = $record.size
+        sha256 = $record.sha256
+        file_version = [string]$version.FileVersion
+        product_version = [string]$version.ProductVersion
+        pe_timestamp_utc = Get-PubPeTimestamp $record.path
+    }
+}
+
+function Get-PubPublisherModuleInventory {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Publisher
+    )
+
+    $result = @()
+    if (-not $Publisher.available) {
+        return $result
+    }
+
+    $pathState = $Publisher.path
+    if ($null -eq $pathState -or $pathState.state -ne "value" -or [string]::IsNullOrWhiteSpace([string]$pathState.value)) {
+        return $result
+    }
+
+    $publisherPath = [string]$pathState.value
+    $installDir = if (Test-Path -LiteralPath $publisherPath -PathType Container) {
+        $publisherPath
+    }
+    elseif (Test-Path -LiteralPath $publisherPath -PathType Leaf) {
+        Split-Path -Parent $publisherPath
+    }
+    else {
+        $publisherPath
+    }
+
+    foreach ($name in @("MSPUB.EXE", "PUBCONV.DLL", "PTXT9.DLL", "PUBOLE.DLL")) {
+        $candidate = Join-Path $installDir $name
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+            $result += Get-PubModuleRecord $candidate
+        }
+    }
+
+    return $result | Sort-Object name
+}
+
+function Get-PubFontSetFingerprint {
+    $fontEntries = @()
+    $registryPaths = @(
+        "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts",
+        "HKCU:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Fonts"
+    )
+
+    foreach ($registryPath in $registryPaths) {
+        if (-not (Test-Path -LiteralPath $registryPath)) {
+            continue
+        }
+
+        $properties = Get-ItemProperty -LiteralPath $registryPath
+        foreach ($property in $properties.PSObject.Properties) {
+            if ($property.Name -like "PS*") {
+                continue
+            }
+
+            $fontEntries += "{0}|{1}|{2}" -f $registryPath, $property.Name, [string]$property.Value
+        }
+    }
+
+    $canonical = @($fontEntries | Sort-Object -Unique)
+    return [ordered]@{
+        entry_count = $canonical.Count
+        sha256 = Get-PubTextSha256 ($canonical -join "`n")
+        entries = $canonical
+    }
+}
+
+function Get-PubStableEnvironmentProjection {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Manifest
+    )
+
+    return [ordered]@{
+        snapshot_id = $Manifest.snapshot_id
+        os = $Manifest.os
+        powershell = $Manifest.powershell
+        locale = $Manifest.locale
+        timezone = $Manifest.timezone
+        default_printer = $Manifest.default_printer
+        publisher = $Manifest.publisher
+        publisher_modules = $Manifest.publisher_modules
+        font_set = [ordered]@{
+            entry_count = $Manifest.font_set.entry_count
+            sha256 = $Manifest.font_set.sha256
+        }
+    }
+}
+
 function Get-PubEnvironmentManifest {
     param(
         [string]$SnapshotId = "",
@@ -188,8 +343,8 @@ function Get-PubEnvironmentManifest {
         $defaultPrinter = $null
     }
 
-    return [ordered]@{
-        schema = "pub-runtime/environment/v1"
+    $manifest = [ordered]@{
+        schema = "pub-runtime/environment/v2"
         captured_at = [DateTimeOffset]::Now.ToString("o")
         snapshot_id = $SnapshotId
         os = [ordered]@{
@@ -210,7 +365,14 @@ function Get-PubEnvironmentManifest {
         default_printer = $defaultPrinter
         machine = [System.Environment]::MachineName
         publisher = $publisher
+        publisher_modules = @(Get-PubPublisherModuleInventory -Publisher $publisher)
+        font_set = Get-PubFontSetFingerprint
     }
+
+    $stableProjection = Get-PubStableEnvironmentProjection -Manifest $manifest
+    $stableJson = $stableProjection | ConvertTo-Json -Depth 32 -Compress
+    $manifest["stable_fingerprint_sha256"] = Get-PubTextSha256 $stableJson
+    return $manifest
 }
 
 function Copy-PubBoundFile {
@@ -339,15 +501,7 @@ function Get-PubRuntimeEnvironmentProjection {
         $Manifest
     )
 
-    return [ordered]@{
-        snapshot_id = [string]$Manifest.snapshot_id
-        os = $Manifest.os
-        powershell = $Manifest.powershell
-        locale = $Manifest.locale
-        timezone = $Manifest.timezone
-        default_printer = $Manifest.default_printer
-        publisher = $Manifest.publisher
-    }
+    return Get-PubStableEnvironmentProjection -Manifest $Manifest
 }
 
 function Assert-PubRuntimeEnvironmentMatchesLabCapture {
@@ -364,12 +518,16 @@ function Assert-PubRuntimeEnvironmentMatchesLabCapture {
 
     $runtimeJson = $runtimeProjection | ConvertTo-Json -Depth 32 -Compress
     $labJson = $labProjection | ConvertTo-Json -Depth 32 -Compress
-    if ($runtimeJson -ne $labJson) {
-        throw "Текущий runtime environment расходится с bound LAB-ENV capture; native run запрещён."
+    $runtimeFingerprint = Get-PubTextSha256 $runtimeJson
+    $labFingerprint = Get-PubTextSha256 $labJson
+
+    if ($runtimeJson -ne $labJson -or $runtimeFingerprint -ne ([string]$labCapture.stable_fingerprint_sha256).ToLowerInvariant()) {
+        throw "Текущий полный runtime fingerprint расходится с bound LAB-ENV capture; native run запрещён."
     }
 
     return [ordered]@{
         state = "match"
+        stable_fingerprint_sha256 = $runtimeFingerprint
         reference_capture = (Resolve-Path -LiteralPath $LabCapturePath).Path
     }
 }
@@ -421,6 +579,12 @@ Export-ModuleMember -Function @(
     "New-PubPublisherApplication",
     "Close-PubPublisherApplication",
     "Get-PubPublisherIdentity",
+    "Get-PubTextSha256",
+    "Get-PubPeTimestamp",
+    "Get-PubModuleRecord",
+    "Get-PubPublisherModuleInventory",
+    "Get-PubFontSetFingerprint",
+    "Get-PubStableEnvironmentProjection",
     "Get-PubEnvironmentManifest",
     "Copy-PubBoundFile",
     "Bind-PubLabEnvironment",
