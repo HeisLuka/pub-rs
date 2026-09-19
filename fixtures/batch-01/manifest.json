@@ -135,9 +135,14 @@
       "availability": "design_only",
       "size": null,
       "sha256": null,
-      "mutation_contract": "Publication с одним embedded sentinel PNG; asset обязан получить отдельный SHA-256 до runtime.",
+      "mutation_contract": "Publication с одним embedded controlled picture tagged PACK_TARGET; source publication не меняется между baseline/manual/pack arms.",
       "expected_result": null,
-      "provenance": "PACK-EXT-01"
+      "provenance": "PACK-EXT-01",
+      "required_tags": [
+        "PUB_ORACLE_ID=PACK_TARGET"
+      ],
+      "runtime_role": "source_for_baseline_manual_and_pack",
+      "sentinel_asset_requirement": "Original inserted asset must be bound separately by exact SHA-256 before runtime."
     },
     {
       "fixture_id": "PACK-CONTROL-ASSET",
@@ -149,7 +154,9 @@
       "sha256": null,
       "mutation_contract": "Один vector/raster control (WMF или TIFF); exact type выбирается и pin'ится до run.",
       "expected_result": null,
-      "provenance": "PACK-EXT-01"
+      "provenance": "PACK-EXT-01",
+      "runtime_role": "source_asset_control",
+      "sentinel_asset_requirement": "Exact bytes + SHA-256 required before format-control run."
     },
     {
       "fixture_id": "STORY-UNLINKED-BASE",
