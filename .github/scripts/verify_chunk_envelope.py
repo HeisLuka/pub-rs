@@ -244,7 +244,13 @@ def parse_general_field(data, cursor, limit):
     field_id = data[cursor]
     wire_type = data[cursor + 1]
 
-    if wire_type in FIXED:
+    if wire_type == 0x00:
+        if field_id != 0x39:
+            raise ValueError(
+                f"unconfirmed zero-payload wire 0x00 for id 0x{field_id:02X} at {cursor}"
+            )
+        payload_len = 0
+    elif wire_type in FIXED:
         payload_len = FIXED[wire_type]
         payload_start = cursor + 2
         end = payload_start + payload_len
@@ -386,6 +392,7 @@ def inspect_fixture(name, url):
     page_fields = []
     document_fields = []
     document_watermarks = []
+    document_false_markers = []
     page_oid_fields = []
     page_oid_pairs = []
 
@@ -413,6 +420,8 @@ def inspect_fixture(name, url):
                             int.from_bytes(field["payload"], "little"),
                         )
                     )
+                if field["id"] == 0x39 and field["type"] == 0x00:
+                    document_false_markers.append(ref["seq_num"])
 
         if ref["raw_type"] == 0x43:
             page_fields.append(
@@ -437,6 +446,7 @@ def inspect_fixture(name, url):
     print("chunk_gap_histogram =", dict(sorted(gaps.items())))
     print("document_count =", len(document_fields))
     print("document_field0x23 =", document_watermarks)
+    print("document_field0x39_wire0x00 =", document_false_markers)
     print("page_count =", len(page_fields))
     print("page_type0x28_fields =", page_oid_fields)
     print("page_field0x06_oid_pairs =", page_oid_pairs)
