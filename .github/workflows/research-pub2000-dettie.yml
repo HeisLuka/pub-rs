@@ -22,6 +22,7 @@ jobs:
           import hashlib
           import io
           import json
+          import struct
           import urllib.request
 
           import olefile
@@ -60,6 +61,82 @@ jobs:
                       "b_context": contents_b[max(0, i-16):i+17].hex(),
                   })
 
+          def u16(data, offset):
+              return struct.unpack_from("<H", data, offset)[0]
+
+          def u32(data, offset):
+              return struct.unpack_from("<I", data, offset)[0]
+
+          marker_names = {
+              0x0002: "IMAGE_2K",
+              0x0004: "LINE",
+              0x0006: "CUSTOM_SHAPE",
+              0x0008: "TEXT_SHAPE",
+              0x000A: "TABLE",
+              0x000F: "GROUP",
+              0x0014: "PAGE",
+              0x0015: "DOCUMENT",
+              0x0021: "IMAGE_2K_DATA",
+              0x0033: "LEGACY_OPL_ENVELOPE",
+              0x0045: "TEXT_INFO",
+              0x0047: "PALETTE",
+              0x004C: "TEXT_FRAME_INDEX",
+              0x0052: "TEXT_ZONE",
+              0x0054: "FILENAME",
+          }
+
+          def old22_directory(data):
+              trailer = u32(data, 0x16)
+              count = u16(data, trailer)
+              entries = []
+              cursor = trailer + 2
+              for ordinal in range(count):
+                  service = u16(data, cursor)
+                  object_id = u16(data, cursor + 2)
+                  parent_id = u16(data, cursor + 4)
+                  chunk_offset = u32(data, cursor + 6)
+                  marker = u16(data, chunk_offset) if chunk_offset + 2 <= len(data) else None
+                  entries.append({
+                      "ordinal": ordinal,
+                      "service": service,
+                      "object_id": object_id,
+                      "parent_id": parent_id,
+                      "chunk_offset": chunk_offset,
+                      "marker": marker,
+                      "marker_hex": f"0x{marker:04X}" if marker is not None else None,
+                      "marker_name": marker_names.get(marker),
+                  })
+                  cursor += 10
+              sorted_entries = sorted(entries, key=lambda x: x["chunk_offset"])
+              for index, entry in enumerate(sorted_entries):
+                  next_offset = (
+                      sorted_entries[index + 1]["chunk_offset"]
+                      if index + 1 < len(sorted_entries)
+                      else trailer
+                  )
+                  entry["inferred_end"] = next_offset
+                  entry["inferred_len"] = max(0, next_offset - entry["chunk_offset"])
+              return trailer, count, entries, sorted_entries
+
+          trailer_a, count_a, dir_a, sorted_a = old22_directory(contents_a)
+          trailer_b, count_b, dir_b, sorted_b = old22_directory(contents_b)
+
+          def locate(sorted_entries, offset):
+              matches = [
+                  entry for entry in sorted_entries
+                  if entry["chunk_offset"] <= offset < entry["inferred_end"]
+              ]
+              if not matches:
+                  return None
+              entry = dict(matches[-1])
+              entry["relative_offset"] = offset - entry["chunk_offset"]
+              entry["relative_offset_hex"] = f"0x{entry['relative_offset']:X}"
+              return entry
+
+          for diff in content_diffs:
+              diff["object_a"] = locate(sorted_a, diff["offset"])
+              diff["object_b"] = locate(sorted_b, diff["offset"])
+
           quill_a = read_stream(payloads["color"], "Quill/QuillSub/CONTENTS")
           quill_b = read_stream(payloads["bw"], "Quill/QuillSub/CONTENTS")
           matcher = difflib.SequenceMatcher(None, quill_a, quill_b, autojunk=False)
@@ -86,6 +163,11 @@ jobs:
               "contents": {
                   "len_color": len(contents_a),
                   "len_bw": len(contents_b),
+                  "trailer_color": trailer_a,
+                  "trailer_bw": trailer_b,
+                  "directory_count_color": count_a,
+                  "directory_count_bw": count_b,
+                  "directory_identical": dir_a == dir_b,
                   "diff_count": len(content_diffs),
                   "diffs": content_diffs,
               },
