@@ -101,11 +101,11 @@ jobs:
             }
             $item = Get-Item -LiteralPath $path
             if ($item.Length -ne 65536) {
-              throw "$name: size=$($item.Length), expected=65536"
+              throw "${name}: size=$($item.Length), expected=65536"
             }
             $actual = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
             if ($actual -ne $expected[$name]) {
-              throw "$name: SHA-256 mismatch: $actual"
+              throw "${name}: SHA-256 mismatch: $actual"
             }
           }
 
