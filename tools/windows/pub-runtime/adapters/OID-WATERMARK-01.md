@@ -11,13 +11,22 @@
 
 ## Единственная semantic mutation
 
-1. открыть exact fixture;
-2. удалить page index 2;
-3. `Pages(1).Duplicate("", "ADD_AFTER_DELETE_PAGE")`;
-4. сохранить current format;
-5. закрыть и открыть output заново.
+1. скопировать exact fixture в immutable run output как рабочую копию;
+2. открыть рабочую копию;
+3. удалить page index 2;
+4. вызвать `Pages(1).Duplicate()` без аргументов;
+5. сохранить через `Document.Save()`;
+6. закрыть и открыть output заново.
+
+Bound input в `input/source.pub` не изменяется.
 
 Adapter сохраняет COM snapshots и output PUB, но **не** интерпретирует raw Contents.
+
+## Почему именно Duplicate() и Save()
+
+По Publisher Object Model `Page.Duplicate` не принимает аргументов. Переименование новой страницы не является частью исходного allocator arm и добавило бы лишнюю semantic mutation.
+
+`Document.SaveAs(..., pbFilePublication, ...)` здесь также не используется: такой вызов сохраняет публикацию в формате текущей версии Publisher и может превратить эксперимент в скрытую conversion arm. `Document.Save()` сохраняет рабочую копию в формате, в котором она была открыта.
 
 ## Предзарегистрированный raw discriminator
 
@@ -67,5 +76,7 @@ Oid.DWORD0
 Oid.DWORD1
 DOCUMENT.field0x02
 ```
+
+Отдельно нужно помнить о фазовой границе: если сам `Page.Delete` меняет watermark, это должно быть установлено отдельным control arm. Основной delete→duplicate run сам по себе не позволяет приписать каждое изменение только Duplicate.
 
 Если получено не `7 -> (2,7) -> 8`, простая allocator-модель должна быть отвергнута или сужена.
