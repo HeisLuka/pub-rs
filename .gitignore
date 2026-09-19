@@ -4,3 +4,4 @@
 .idea/
 .vscode/
 /tools/windows/tokn-runtime/out/
+/tools/windows/pub-runtime/out/
