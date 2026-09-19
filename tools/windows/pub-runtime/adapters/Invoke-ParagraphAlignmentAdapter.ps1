@@ -210,7 +210,7 @@ finally {
             [void][System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($document)
         }
         catch {
-            # Best effort cleanup.
+            # Очистка выполняется по возможности.
         }
     }
 
@@ -246,14 +246,14 @@ if ($result.save.state -eq "ok") {
                 $reopenDocument.Close()
             }
             catch {
-                # Best effort cleanup.
+                # Очистка выполняется по возможности.
             }
 
             try {
                 [void][System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($reopenDocument)
             }
             catch {
-                # Best effort cleanup.
+                # Очистка выполняется по возможности.
             }
         }
 
