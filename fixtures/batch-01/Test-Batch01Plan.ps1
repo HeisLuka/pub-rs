@@ -83,21 +83,25 @@ function Check-FixtureReference {
     $fixture = $fixtures[$FixtureId]
     $availability = [string]$fixture.availability
 
-    if ($availability -eq "pinned") {
-        Add-PlanRow "fixture" $CaseKey "PINNED" $FixtureId
-        return
-    }
-
-    if ($availability -eq "external_pinned") {
+    if ($availability -eq "pinned" -or $availability -eq "external_pinned") {
         if ([string]::IsNullOrWhiteSpace($FixtureRoot)) {
-            Add-PlanRow "fixture" $CaseKey "BLOCKED" "$FixtureId availability=external_pinned; FixtureRoot не передан для local verification"
-            $script:executionBlocked = $true
+            if ($RequireExecutable) {
+                Add-PlanRow "fixture" $CaseKey "BLOCKED" "$FixtureId availability=$availability; FixtureRoot обязателен для executable local verification"
+                $script:executionBlocked = $true
+            }
+            elseif ($availability -eq "pinned") {
+                Add-PlanRow "fixture" $CaseKey "PINNED_IDENTITY" "$FixtureId; local bytes не проверялись"
+            }
+            else {
+                Add-PlanRow "fixture" $CaseKey "BLOCKED" "$FixtureId availability=external_pinned; local bytes не проверялись"
+                $script:executionBlocked = $true
+            }
             return
         }
 
         $localFilename = [string](Get-OptionalProperty -Object $fixture -Name "local_filename")
         if ([string]::IsNullOrWhiteSpace($localFilename)) {
-            Add-PlanRow "fixture" $CaseKey "SCHEMA_ERROR" "$FixtureId external_pinned без local_filename"
+            Add-PlanRow "fixture" $CaseKey "SCHEMA_ERROR" "$FixtureId $availability без local_filename"
             $script:schemaError = $true
             return
         }
@@ -109,18 +113,26 @@ function Check-FixtureReference {
             return
         }
 
-        $actualHash = (Get-FileHash -LiteralPath $localPath -Algorithm SHA256).Hash.ToLowerInvariant()
         $expectedHash = ([string]$fixture.sha256).ToLowerInvariant()
-        $actualSize = [int64](Get-Item -LiteralPath $localPath).Length
-        $expectedSize = [int64]$fixture.size
+        if ([string]::IsNullOrWhiteSpace($expectedHash)) {
+            Add-PlanRow "fixture" $CaseKey "SCHEMA_ERROR" "$FixtureId $availability без canonical SHA-256"
+            $script:schemaError = $true
+            return
+        }
 
-        if ($actualHash -ne $expectedHash -or $actualSize -ne $expectedSize) {
+        $item = Get-Item -LiteralPath $localPath
+        $actualHash = (Get-FileHash -LiteralPath $localPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        $sizeProperty = Get-OptionalProperty -Object $fixture -Name "size"
+        $sizeMatches = ($null -eq $sizeProperty) -or ([int64]$sizeProperty -eq [int64]$item.Length)
+
+        if ($actualHash -ne $expectedHash -or -not $sizeMatches) {
             Add-PlanRow "fixture" $CaseKey "BLOCKED" "$FixtureId local identity mismatch"
             $script:executionBlocked = $true
             return
         }
 
-        Add-PlanRow "fixture" $CaseKey "PINNED_EXTERNAL" "$FixtureId local size/SHA-256 verified"
+        $verifiedState = if ($availability -eq "external_pinned") { "PINNED_EXTERNAL" } else { "PINNED_LOCAL" }
+        Add-PlanRow "fixture" $CaseKey $verifiedState "$FixtureId local size/SHA-256 verified"
         return
     }
 
