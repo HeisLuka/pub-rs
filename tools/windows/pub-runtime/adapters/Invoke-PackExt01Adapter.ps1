@@ -142,6 +142,31 @@ function Get-PackPictureSnapshot {
     }
 }
 
+function Assert-OperatorPathMatch {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ManifestPath,
+        [Parameter(Mandatory = $true)]
+        [string]$CapturedPath,
+        [Parameter(Mandatory = $true)]
+        [string]$Label
+    )
+
+    if ([string]::IsNullOrWhiteSpace($ManifestPath)) {
+        throw "Operator manifest не содержит path для $Label"
+    }
+
+    $manifestResolved = (Resolve-Path -LiteralPath $ManifestPath).Path
+    $capturedResolved = (Resolve-Path -LiteralPath $CapturedPath).Path
+    if (-not [string]::Equals(
+        $manifestResolved,
+        $capturedResolved,
+        [System.StringComparison]::OrdinalIgnoreCase
+    )) {
+        throw "Operator manifest path для $Label не совпадает с captured path: manifest=$manifestResolved captured=$capturedResolved"
+    }
+}
+
 function Copy-DirectoryBound {
     param(
         [Parameter(Mandatory = $true)]
@@ -224,6 +249,13 @@ if ($result.source.semantic.state -ne "value") {
     throw "Baseline fixture не удовлетворяет PACK_TARGET contract: $($result.source.semantic.message)"
 }
 
+$sentinelRecords = @($result.source.sentinel_assets)
+if ($sentinelRecords.Count -ne 1) {
+    throw "PACK-EXT-01 требует ровно один bound sentinel asset; найдено: $($sentinelRecords.Count)"
+}
+$boundSourceSha256 = [string]$result.source.pub.sha256
+$boundSentinelSha256 = [string]$sentinelRecords[0].sha256
+
 if ($caseId -ne "baseline") {
     if ([string]::IsNullOrWhiteSpace($env:PUB_PACK_OPERATOR_MANIFEST)) {
         throw "Для $caseId требуется PUB_PACK_OPERATOR_MANIFEST"
@@ -236,6 +268,26 @@ if ($caseId -ne "baseline") {
     }
     if ([string]$operatorParsed.case_id -ne $caseId) {
         throw "operator manifest case_id=$($operatorParsed.case_id) не совпадает с run case_id=$caseId"
+    }
+
+    if ($null -eq $operatorParsed.input) {
+        throw "operator manifest должен содержать input provenance"
+    }
+    if ([string]$operatorParsed.input.source_pub_sha256 -ne $boundSourceSha256) {
+        throw "operator manifest source_pub_sha256 не совпадает с exact bound source PUB"
+    }
+    if ([string]$operatorParsed.input.sentinel_sha256 -ne $boundSentinelSha256) {
+        throw "operator manifest sentinel_sha256 не совпадает с exact bound sentinel asset"
+    }
+
+    if ($null -eq $operatorParsed.output) {
+        throw "operator manifest должен содержать output paths"
+    }
+    Assert-OperatorPathMatch -ManifestPath ([string]$operatorParsed.output.rewritten_pub) -CapturedPath $env:PUB_PACK_OUTPUT_PUB -Label "rewritten_pub"
+    Assert-OperatorPathMatch -ManifestPath ([string]$operatorParsed.output.extracted_assets_root) -CapturedPath $env:PUB_PACK_ASSETS_ROOT -Label "extracted_assets_root"
+
+    if ($caseId -eq "pack-commercial" -or $caseId -eq "pack-computer") {
+        Assert-OperatorPathMatch -ManifestPath ([string]$operatorParsed.output.package_file) -CapturedPath $env:PUB_PACK_PACKAGE_FILE -Label "package_file"
     }
 
     $operatorDestination = Join-Path ([string]$context.meta_dir) "pack-operator-manifest.json"
