@@ -143,7 +143,8 @@
         "repository": "aspose-pub/Aspose.PUB-for-.NET",
         "commit": "beee619f9a4b7e2c8908e0fa132f4f4650b08975",
         "path": "Examples/Data/halloween-flyer.pub",
-        "git_blob_sha1": "6610c53ff345d4e11e03b7fffd1cd128b3ae4052"
+        "git_blob_sha1": "6610c53ff345d4e11e03b7fffd1cd128b3ae4052",
+        "raw_url": "https://raw.githubusercontent.com/aspose-pub/Aspose.PUB-for-.NET/beee619f9a4b7e2c8908e0fa132f4f4650b08975/Examples/Data/halloween-flyer.pub"
       },
       "locator_contract": {
         "primary": "PUB_ORACLE_ID=ALIGN_TARGET if a separately pinned tagged derivative is used",
