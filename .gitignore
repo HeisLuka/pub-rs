@@ -3,3 +3,4 @@
 .DS_Store
 .idea/
 .vscode/
+/tools/windows/tokn-runtime/out/
