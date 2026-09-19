@@ -40,7 +40,7 @@ pub use reference::{
     parse_confirmed_chunk_reference,
 };
 pub use trailer::{
-    TRAILER_DIRECTORY_ID, TRAILER_MAX_ORDINAL_ID, TRAILER_SLOT_COUNT_ID, Contents0x2cTrailerRoot,
+    Contents0x2cTrailerRoot, TRAILER_DIRECTORY_ID, TRAILER_MAX_ORDINAL_ID, TRAILER_SLOT_COUNT_ID,
     TrailerRootReadError, parse_confirmed_0x2c_trailer_root,
 };
 
