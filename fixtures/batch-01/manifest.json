@@ -232,6 +232,19 @@
       "mutation_contract": "Same semantic wizard object already in moved state. Only runtime mutation is Shape.Left restore to MORPH_BASE_LEFT.",
       "expected_result": null,
       "provenance": "MORPH-FLAGS-01 / restore causal contract"
+    },
+    {
+      "fixture_id": "PACK-SENTINEL-PNG",
+      "experiment_id": "PACK-EXT-01",
+      "family": "pack-linked-picture",
+      "role": "asset",
+      "availability": "design_only",
+      "size": null,
+      "sha256": null,
+      "runtime_role": "original_asset_for_png_arms",
+      "mutation_contract": "Exact PNG bytes inserted into PACK-EMBEDDED-PNG-BASE. Same file is bound as SentinelAsset for baseline/manual/pack arms.",
+      "expected_result": null,
+      "provenance": "PACK-EXT-01 sentinel asset contract"
     }
   ]
 }
