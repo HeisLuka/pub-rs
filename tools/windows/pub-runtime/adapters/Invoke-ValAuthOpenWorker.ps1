@@ -166,7 +166,7 @@ finally {
             [void][System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($document)
         }
         catch {
-            # Best effort cleanup.
+            # Очистка выполняется по возможности.
         }
     }
 
