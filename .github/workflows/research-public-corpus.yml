@@ -508,11 +508,27 @@ jobs:
                   if plc_type != 12 or plc_count > 1000:
                       continue
                   sections = find_target_sections(payload, plc_count)
+                  first_header = min(
+                      (sec["header_offset"] for sec in sections),
+                      default=len(payload),
+                  )
+                  tag22 = []
+                  # Confirmed Quill block packing: id byte + type 0x22 + u32.
+                  # Report raw occurrences only; semantic labels are assigned
+                  # later from the canonical 0x2200/01/02 joins.
+                  for pos in range(0, max(0, first_header - 5)):
+                      if payload[pos] in (0, 1, 2) and payload[pos + 1] == 0x22:
+                          tag22.append({
+                              "offset": pos,
+                              "id": payload[pos],
+                              "value_u32": u32(payload, pos + 2),
+                          })
                   tokens.append({
                       "descriptor": d,
                       "plc_count": plc_count,
                       "plc_type": plc_type,
                       "story_text": stories.get(d["id"], "")[:500],
+                      "tag22_occurrences_before_target": tag22,
                       "target_sections": sections,
                   })
               scalars = []
