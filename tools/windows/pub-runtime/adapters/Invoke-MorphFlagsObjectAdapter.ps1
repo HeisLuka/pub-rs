@@ -248,7 +248,7 @@ try {
         $outputPath = Join-Path ([string]$context.output_dir) ("morph-{0}.pub" -f $caseId)
 
         try {
-            # pbFilePublication = 1: current Publisher writer.
+            # pbFilePublication = 1 — текущий формат сохранения Publisher.
             $document.SaveAs($outputPath, 1, $false)
             $fileRecord = Get-PubFileRecord $outputPath
             $result.save.state = "ok"
@@ -278,7 +278,7 @@ finally {
             [void][System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($document)
         }
         catch {
-            # Best effort cleanup.
+            # Очистка выполняется по возможности.
         }
     }
 
@@ -314,14 +314,14 @@ if ($result.save.state -eq "ok") {
                 $reopenDocument.Close()
             }
             catch {
-                # Best effort cleanup.
+                # Очистка выполняется по возможности.
             }
 
             try {
                 [void][System.Runtime.InteropServices.Marshal]::FinalReleaseComObject($reopenDocument)
             }
             catch {
-                # Best effort cleanup.
+                # Очистка выполняется по возможности.
             }
         }
 
