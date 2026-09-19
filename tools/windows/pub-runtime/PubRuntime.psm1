@@ -250,7 +250,7 @@ function Get-PubDirectoryHashes {
         Sort-Object FullName |
         ForEach-Object {
             $hash = Get-FileHash -LiteralPath $_.FullName -Algorithm SHA256
-            $relative = $_.FullName.Substring($rootPath.Length).TrimStart('\', '/')
+            $relative = $_.FullName.Substring($rootPath.Length).TrimStart([char[]]"\/")
             $records += [ordered]@{
                 path = $relative.Replace('\', '/')
                 size = [int64]$_.Length
