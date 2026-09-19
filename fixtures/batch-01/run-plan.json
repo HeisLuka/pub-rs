@@ -112,19 +112,37 @@
               "state": "ready_when_pinned"
             },
             {
-              "case_id": "style--align-2--current",
+              "case_id": "style--align-1--current",
               "source_fixture_id": "ALIGN-STYLE-TOPOLOGY-BASE",
-              "state": "ready_when_pinned"
+              "state": "ready_when_external_fixture_materialized_and_runtime_contract_verified",
+              "preconditions": {
+                "source_sha256": "f079765650af152e1ae1fbfded757f679c588ceea884b77329a240c578884c25",
+                "shape_name": "Text Box 20",
+                "text_contains": "Children",
+                "initial_alignment": 2
+              }
             },
             {
               "case_id": "style--align-3--current",
               "source_fixture_id": "ALIGN-STYLE-TOPOLOGY-BASE",
-              "state": "ready_when_pinned"
+              "state": "ready_when_external_fixture_materialized_and_runtime_contract_verified",
+              "preconditions": {
+                "source_sha256": "f079765650af152e1ae1fbfded757f679c588ceea884b77329a240c578884c25",
+                "shape_name": "Text Box 20",
+                "text_contains": "Children",
+                "initial_alignment": 2
+              }
             },
             {
               "case_id": "style--align-4--current",
               "source_fixture_id": "ALIGN-STYLE-TOPOLOGY-BASE",
-              "state": "ready_when_pinned"
+              "state": "ready_when_external_fixture_materialized_and_runtime_contract_verified",
+              "preconditions": {
+                "source_sha256": "f079765650af152e1ae1fbfded757f679c588ceea884b77329a240c578884c25",
+                "shape_name": "Text Box 20",
+                "text_contains": "Children",
+                "initial_alignment": 2
+              }
             }
           ],
           "deferred": [
@@ -135,6 +153,11 @@
             {
               "writer": "publisher98",
               "state": "after_current_raw_attribution"
+            },
+            {
+              "case_id": "style--align-2--current",
+              "state": "after_style_align_1_output_is_separately_pinned",
+              "reason": "Upstream style source starts at Alignment=2, so direct align-2 would be a no-op. Reverse 1->2 requires a separately pinned value-1 source."
             }
           ]
         },
