@@ -1,0 +1,53 @@
+{
+  "schema": "pub-crval-materialization/v2",
+  "source_url": "https://steve-parker.org/articles/ms_publisher/8/is.pub",
+  "source_size": 65536,
+  "source_sha256": "26b71f6686a5a9c25b576d97bee88c00e983dba04bd6e98ff305b6bc3f95b935",
+  "materialization": "exact baseline + documented fixed-width mutation contracts",
+  "pinned_outputs": [
+    "VAL-PARKER-BASELINE.pub",
+    "VAL-CRVAL01-INTERNAL-CR-TO-R.pub",
+    "VAL-CRVAL02-TERMINAL-CR-TO-R.pub",
+    "VAL-CRVAL03-TERMINAL-CR-TO-LF.pub",
+    "VAL-CRVAL04-FDPP-PLUS2.pub"
+  ],
+  "crval05_status": "bytes_pending_documented_recipe_hash_mismatch",
+  "outputs": {
+    "VAL-PARKER-BASELINE.pub": {
+      "size": 65536,
+      "sha256": "26b71f6686a5a9c25b576d97bee88c00e983dba04bd6e98ff305b6bc3f95b935",
+      "expected_sha256": "26b71f6686a5a9c25b576d97bee88c00e983dba04bd6e98ff305b6bc3f95b935",
+      "canonical_hash_match": true
+    },
+    "VAL-CRVAL01-INTERNAL-CR-TO-R.pub": {
+      "size": 65536,
+      "sha256": "d236eb6e1e2be0becc468415f4024afa5c6563fcf90e86a27b607bd4b8a5ac7f",
+      "expected_sha256": "d236eb6e1e2be0becc468415f4024afa5c6563fcf90e86a27b607bd4b8a5ac7f",
+      "canonical_hash_match": true
+    },
+    "VAL-CRVAL02-TERMINAL-CR-TO-R.pub": {
+      "size": 65536,
+      "sha256": "82635406d3e8f55d90196b573cc55cd27f43eb949bc23caf76edbde2bcef0780",
+      "expected_sha256": "82635406d3e8f55d90196b573cc55cd27f43eb949bc23caf76edbde2bcef0780",
+      "canonical_hash_match": true
+    },
+    "VAL-CRVAL03-TERMINAL-CR-TO-LF.pub": {
+      "size": 65536,
+      "sha256": "2a467d60364807bfb3f2837726b26af6a632e3174825dd961e8bf80f64971d7b",
+      "expected_sha256": "2a467d60364807bfb3f2837726b26af6a632e3174825dd961e8bf80f64971d7b",
+      "canonical_hash_match": true
+    },
+    "VAL-CRVAL04-FDPP-PLUS2.pub": {
+      "size": 65536,
+      "sha256": "76bfd4ec05127ef6cb424d789eaab67a1939e95cf4f525120f999b8a960d501c",
+      "expected_sha256": "76bfd4ec05127ef6cb424d789eaab67a1939e95cf4f525120f999b8a960d501c",
+      "canonical_hash_match": true
+    },
+    "VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1.pub": {
+      "size": 65536,
+      "sha256": "a397cce1b3f6a765434756490cee602bcdb47ca162e735f4dc342032a60d6b1b",
+      "expected_sha256": "8e93c5061d119b3358d2bbeda2960599d7b551bf13cba9a33a0f5ec0e39fe11b",
+      "canonical_hash_match": false
+    }
+  }
+}

@@ -1,0 +1,333 @@
+name: Research — материализация Parker CRVAL
+
+on:
+  push:
+    branches:
+      - research/batch-fixtures-01
+
+permissions:
+  contents: write
+
+jobs:
+  materialize:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Забрать ветку fixture manifest
+        uses: actions/checkout@v5
+        with:
+          ref: research/batch-fixtures-01
+          fetch-depth: 0
+
+      - name: Проверить, не материализованы ли fixtures уже
+        id: existing
+        shell: bash
+        run: |
+          set -euo pipefail
+          files=(
+            fixtures/batch-01/VAL-PARKER-BASELINE.pub
+            fixtures/batch-01/VAL-CRVAL01-INTERNAL-CR-TO-R.pub
+            fixtures/batch-01/VAL-CRVAL02-TERMINAL-CR-TO-R.pub
+            fixtures/batch-01/VAL-CRVAL03-TERMINAL-CR-TO-LF.pub
+            fixtures/batch-01/VAL-CRVAL04-FDPP-PLUS2.pub
+            fixtures/batch-01/VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1.pub
+          )
+          present=0
+          for f in "${files[@]}"; do
+            if [[ -f "$f" ]]; then
+              present=$((present + 1))
+            fi
+          done
+          if [[ "$present" -eq 0 ]]; then
+            echo "state=missing" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          # Легальное промежуточное состояние: exact baseline + CRVAL01..04
+          # pinned, а CRVAL05 остаётся bytes_pending из-за provenance mismatch.
+          if [[ "$present" -eq 5 && ! -f fixtures/batch-01/VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1.pub ]]; then
+            echo "26b71f6686a5a9c25b576d97bee88c00e983dba04bd6e98ff305b6bc3f95b935  fixtures/batch-01/VAL-PARKER-BASELINE.pub" | sha256sum --check -
+            echo "d236eb6e1e2be0becc468415f4024afa5c6563fcf90e86a27b607bd4b8a5ac7f  fixtures/batch-01/VAL-CRVAL01-INTERNAL-CR-TO-R.pub" | sha256sum --check -
+            echo "82635406d3e8f55d90196b573cc55cd27f43eb949bc23caf76edbde2bcef0780  fixtures/batch-01/VAL-CRVAL02-TERMINAL-CR-TO-R.pub" | sha256sum --check -
+            echo "2a467d60364807bfb3f2837726b26af6a632e3174825dd961e8bf80f64971d7b  fixtures/batch-01/VAL-CRVAL03-TERMINAL-CR-TO-LF.pub" | sha256sum --check -
+            echo "76bfd4ec05127ef6cb424d789eaab67a1939e95cf4f525120f999b8a960d501c  fixtures/batch-01/VAL-CRVAL04-FDPP-PLUS2.pub" | sha256sum --check -
+            echo "state=verified_partial" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          if [[ "$present" -ne "${#files[@]}" ]]; then
+            echo "Обнаружено нелегальное частично материализованное состояние: $present/${#files[@]}" >&2
+            exit 2
+          fi
+          echo "26b71f6686a5a9c25b576d97bee88c00e983dba04bd6e98ff305b6bc3f95b935  fixtures/batch-01/VAL-PARKER-BASELINE.pub" | sha256sum --check -
+          echo "d236eb6e1e2be0becc468415f4024afa5c6563fcf90e86a27b607bd4b8a5ac7f  fixtures/batch-01/VAL-CRVAL01-INTERNAL-CR-TO-R.pub" | sha256sum --check -
+          echo "82635406d3e8f55d90196b573cc55cd27f43eb949bc23caf76edbde2bcef0780  fixtures/batch-01/VAL-CRVAL02-TERMINAL-CR-TO-R.pub" | sha256sum --check -
+          echo "2a467d60364807bfb3f2837726b26af6a632e3174825dd961e8bf80f64971d7b  fixtures/batch-01/VAL-CRVAL03-TERMINAL-CR-TO-LF.pub" | sha256sum --check -
+          echo "76bfd4ec05127ef6cb424d789eaab67a1939e95cf4f525120f999b8a960d501c  fixtures/batch-01/VAL-CRVAL04-FDPP-PLUS2.pub" | sha256sum --check -
+          echo "8e93c5061d119b3358d2bbeda2960599d7b551bf13cba9a33a0f5ec0e39fe11b  fixtures/batch-01/VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1.pub" | sha256sum --check -
+          echo "state=verified" >> "$GITHUB_OUTPUT"
+
+      - name: Скачать exact Parker baseline
+        if: steps.existing.outputs.state == 'missing'
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl --fail --location --retry 3 --retry-delay 2             --user-agent "pub-rs-research-fixture-verifier/1"             --output /tmp/parker-is.pub             https://steve-parker.org/articles/ms_publisher/8/is.pub
+          test "$(stat -c '%s' /tmp/parker-is.pub)" -eq 65536
+          echo "26b71f6686a5a9c25b576d97bee88c00e983dba04bd6e98ff305b6bc3f95b935  /tmp/parker-is.pub" | sha256sum --check -
+
+      - name: Материализовать CRVAL из exact baseline и проверить canonical hashes
+        if: steps.existing.outputs.state == 'missing'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import struct
+
+          root = Path("fixtures/batch-01")
+          source = Path("/tmp/parker-is.pub").read_bytes()
+          if len(source) != 65536:
+              raise SystemExit(f"Неверный размер Parker baseline: {len(source)}")
+
+          expected_hashes = {
+              "VAL-PARKER-BASELINE.pub": "26b71f6686a5a9c25b576d97bee88c00e983dba04bd6e98ff305b6bc3f95b935",
+              "VAL-CRVAL01-INTERNAL-CR-TO-R.pub": "d236eb6e1e2be0becc468415f4024afa5c6563fcf90e86a27b607bd4b8a5ac7f",
+              "VAL-CRVAL02-TERMINAL-CR-TO-R.pub": "82635406d3e8f55d90196b573cc55cd27f43eb949bc23caf76edbde2bcef0780",
+              "VAL-CRVAL03-TERMINAL-CR-TO-LF.pub": "2a467d60364807bfb3f2837726b26af6a632e3174825dd961e8bf80f64971d7b",
+              "VAL-CRVAL04-FDPP-PLUS2.pub": "76bfd4ec05127ef6cb424d789eaab67a1939e95cf4f525120f999b8a960d501c",
+              "VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1.pub": "8e93c5061d119b3358d2bbeda2960599d7b551bf13cba9a33a0f5ec0e39fe11b",
+          }
+
+          def patch_bytes(data: bytes, offset: int, before: bytes, after: bytes, label: str) -> bytes:
+              if len(before) != len(after):
+                  raise SystemExit(f"{label}: patch меняет длину")
+              actual = data[offset:offset + len(before)]
+              if actual != before:
+                  raise SystemExit(
+                      f"{label}: precondition mismatch at 0x{offset:X}: "
+                      f"expected={before.hex()} actual={actual.hex()}"
+                  )
+              out = bytearray(data)
+              out[offset:offset + len(before)] = after
+              return bytes(out)
+
+          outputs = {}
+          outputs["VAL-PARKER-BASELINE.pub"] = source
+
+          crval01 = patch_bytes(source, 0xF020, b"\x0d\x00", b"\x72\x00", "CRVAL01 TEXT")
+          outputs["VAL-CRVAL01-INTERNAL-CR-TO-R.pub"] = crval01
+
+          crval02 = patch_bytes(source, 0xF07C, b"\x0d\x00", b"\x72\x00", "CRVAL02 TEXT")
+          outputs["VAL-CRVAL02-TERMINAL-CR-TO-R.pub"] = crval02
+
+          crval03 = patch_bytes(source, 0xF07C, b"\x0d\x00", b"\x0a\x00", "CRVAL03 TEXT")
+          outputs["VAL-CRVAL03-TERMINAL-CR-TO-LF.pub"] = crval03
+
+          crval04 = patch_bytes(
+              source,
+              0xF410,
+              struct.pack("<I", 0x027E),
+              struct.pack("<I", 0x0280),
+              "CRVAL04 FDPP",
+          )
+          outputs["VAL-CRVAL04-FDPP-PLUS2.pub"] = crval04
+
+          crval05 = source
+          crval05 = patch_bytes(crval05, 0xF07C, struct.pack("<H", 0x000D), struct.pack("<H", 0x0054), "CRVAL05 TEXT old CR")
+          crval05 = patch_bytes(crval05, 0xF07E, struct.pack("<H", 0x0054), struct.pack("<H", 0x000D), "CRVAL05 TEXT moved CR")
+          crval05 = patch_bytes(crval05, 0xFB8E, struct.pack("<I", 63), struct.pack("<I", 64), "CRVAL05 STRS story 1")
+          crval05 = patch_bytes(crval05, 0xFB92, struct.pack("<I", 72), struct.pack("<I", 71), "CRVAL05 STRS story 2")
+          crval05 = patch_bytes(crval05, 0xF410, struct.pack("<I", 0x027E), struct.pack("<I", 0x0280), "CRVAL05 FDPP")
+          crval05 = patch_bytes(crval05, 0xF608, struct.pack("<I", 0x027C), struct.pack("<I", 0x027E), "CRVAL05 FDPC start")
+          crval05 = patch_bytes(crval05, 0xF60C, struct.pack("<I", 0x027E), struct.pack("<I", 0x0280), "CRVAL05 FDPC end")
+          outputs["VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1.pub"] = crval05
+
+          observed = {}
+          pinned_names = []
+          crval05_name = "VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1.pub"
+
+          for name, data in outputs.items():
+              digest = hashlib.sha256(data).hexdigest()
+              matches = digest == expected_hashes[name]
+              observed[name] = {
+                  "size": len(data),
+                  "sha256": digest,
+                  "expected_sha256": expected_hashes[name],
+                  "canonical_hash_match": matches,
+              }
+              if len(data) != 65536:
+                  raise SystemExit(f"{name}: размер {len(data)} вместо 65536")
+
+              if name == crval05_name:
+                  # CRVAL05 остаётся fail-closed: attachment hash из OBS-R27-05
+                  # не подменяется hash'ем реконструкции по неполному описанию.
+                  if matches:
+                      path = root / name
+                      if path.exists():
+                          raise SystemExit(f"Refuse overwrite: {path}")
+                      path.write_bytes(data)
+                      pinned_names.append(name)
+                  continue
+
+              if not matches:
+                  raise SystemExit(
+                      f"{name}: SHA-256 mismatch: expected={expected_hashes[name]} actual={digest}"
+                  )
+
+              path = root / name
+              if path.exists():
+                  raise SystemExit(f"Refuse overwrite: {path}")
+              path.write_bytes(data)
+              pinned_names.append(name)
+
+          manifest_path = root / "manifest.json"
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          pinned_fixture_ids = {
+              "VAL-PARKER-BASELINE",
+              "VAL-CRVAL01-INTERNAL-CR-TO-R",
+              "VAL-CRVAL02-TERMINAL-CR-TO-R",
+              "VAL-CRVAL03-TERMINAL-CR-TO-LF",
+              "VAL-CRVAL04-FDPP-PLUS2",
+          }
+          if observed[crval05_name]["canonical_hash_match"]:
+              pinned_fixture_ids.add("VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1")
+
+          for fixture in manifest["fixtures"]:
+              if fixture["fixture_id"] in pinned_fixture_ids:
+                  fixture["availability"] = "pinned"
+
+          manifest_path.write_text(
+              json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+
+          receipt = {
+              "schema": "pub-crval-materialization/v2",
+              "source_url": "https://steve-parker.org/articles/ms_publisher/8/is.pub",
+              "source_size": 65536,
+              "source_sha256": expected_hashes["VAL-PARKER-BASELINE.pub"],
+              "materialization": "exact baseline + documented fixed-width mutation contracts",
+              "pinned_outputs": pinned_names,
+              "crval05_status": (
+                  "pinned"
+                  if observed[crval05_name]["canonical_hash_match"]
+                  else "bytes_pending_documented_recipe_hash_mismatch"
+              ),
+              "outputs": observed,
+          }
+          (root / "crval-materialization.json").write_text(
+              json.dumps(receipt, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          PY
+
+      - name: Сохранить диагностику CRVAL при несовпадении
+        if: failure() && steps.existing.outputs.state == 'missing'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import struct
+
+          source_path = Path("/tmp/parker-is.pub")
+          report = {
+              "schema": "pub-crval-materialization-diagnostic/v1",
+              "source_present": source_path.exists(),
+              "checks": [],
+              "derived": {},
+          }
+
+          if source_path.exists():
+              source = source_path.read_bytes()
+              report["source_size"] = len(source)
+              report["source_sha256"] = hashlib.sha256(source).hexdigest()
+
+              checks = [
+                  ("CRVAL01 TEXT", 0xF020, b"\x0d\x00"),
+                  ("CRVAL02/03/05 TEXT terminal", 0xF07C, b"\x0d\x00"),
+                  ("CRVAL05 TEXT next char", 0xF07E, b"\x54\x00"),
+                  ("CRVAL04/05 FDPP", 0xF410, struct.pack("<I", 0x027E)),
+                  ("CRVAL05 FDPC start", 0xF608, struct.pack("<I", 0x027C)),
+                  ("CRVAL05 FDPC end", 0xF60C, struct.pack("<I", 0x027E)),
+                  ("CRVAL05 STRS story 1", 0xFB8E, struct.pack("<I", 63)),
+                  ("CRVAL05 STRS story 2", 0xFB92, struct.pack("<I", 72)),
+              ]
+              for label, offset, expected in checks:
+                  actual = source[offset:offset + len(expected)]
+                  report["checks"].append({
+                      "label": label,
+                      "offset": f"0x{offset:X}",
+                      "expected": expected.hex(),
+                      "actual": actual.hex(),
+                      "matches": actual == expected,
+                  })
+
+              def overwrite(data: bytes, offset: int, after: bytes) -> bytes:
+                  out = bytearray(data)
+                  out[offset:offset + len(after)] = after
+                  return bytes(out)
+
+              outputs = {}
+              outputs["VAL-PARKER-BASELINE.pub"] = source
+              outputs["VAL-CRVAL01-INTERNAL-CR-TO-R.pub"] = overwrite(source, 0xF020, b"\x72\x00")
+              outputs["VAL-CRVAL02-TERMINAL-CR-TO-R.pub"] = overwrite(source, 0xF07C, b"\x72\x00")
+              outputs["VAL-CRVAL03-TERMINAL-CR-TO-LF.pub"] = overwrite(source, 0xF07C, b"\x0a\x00")
+              outputs["VAL-CRVAL04-FDPP-PLUS2.pub"] = overwrite(source, 0xF410, struct.pack("<I", 0x0280))
+
+              crval05 = source
+              crval05 = overwrite(crval05, 0xF07C, struct.pack("<H", 0x0054))
+              crval05 = overwrite(crval05, 0xF07E, struct.pack("<H", 0x000D))
+              crval05 = overwrite(crval05, 0xFB8E, struct.pack("<I", 64))
+              crval05 = overwrite(crval05, 0xFB92, struct.pack("<I", 71))
+              crval05 = overwrite(crval05, 0xF410, struct.pack("<I", 0x0280))
+              crval05 = overwrite(crval05, 0xF608, struct.pack("<I", 0x027E))
+              crval05 = overwrite(crval05, 0xF60C, struct.pack("<I", 0x0280))
+              outputs["VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1.pub"] = crval05
+
+              for name, data in outputs.items():
+                  report["derived"][name] = {
+                      "size": len(data),
+                      "sha256": hashlib.sha256(data).hexdigest(),
+                  }
+
+          Path("/tmp/crval-diagnostic.json").write_text(
+              json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(report, ensure_ascii=False, indent=2))
+          PY
+
+      - name: Загрузить диагностику CRVAL
+        if: failure() && steps.existing.outputs.state == 'missing'
+        uses: actions/upload-artifact@v4
+        with:
+          name: crval-materialization-diagnostic
+          path: /tmp/crval-diagnostic.json
+          if-no-files-found: error
+
+      - name: Зафиксировать exact bytes в research branch
+        if: steps.existing.outputs.state == 'missing'
+        shell: bash
+        run: |
+          set -euo pipefail
+          git config user.name "pub-rs research bot"
+          git config user.email "actions@users.noreply.github.com"
+          git add \
+            fixtures/batch-01/manifest.json \
+            fixtures/batch-01/VAL-PARKER-BASELINE.pub \
+            fixtures/batch-01/VAL-CRVAL01-INTERNAL-CR-TO-R.pub \
+            fixtures/batch-01/VAL-CRVAL02-TERMINAL-CR-TO-R.pub \
+            fixtures/batch-01/VAL-CRVAL03-TERMINAL-CR-TO-LF.pub \
+            fixtures/batch-01/VAL-CRVAL04-FDPP-PLUS2.pub \
+            fixtures/batch-01/crval-materialization.json
+          if [[ -f fixtures/batch-01/VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1.pub ]]; then
+            git add fixtures/batch-01/VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1.pub
+          fi
+          git commit -m "Материализовать exact Parker CRVAL fixtures"
+          git push origin HEAD:research/batch-fixtures-01
