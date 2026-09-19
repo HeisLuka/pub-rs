@@ -25,9 +25,14 @@ Exact baseline PUB должен содержать ровно один tagged pi
 
 Используется schema `pub-pack-ext-01/operator-action/v1`. Пример лежит рядом: `pack-operator-manifest.example.json`.
 
-Минимально фиксируются `case_id`, время, реальный UI action, известные checkbox/options и paths. Неизвестная опция остаётся `null`; её нельзя восстанавливать по содержимому package задним числом.
+Минимально фиксируются `case_id`, время, реальный UI action, известные checkbox/options, paths и input provenance:
 
-Adapter проверяет, что `case_id` manifest совпадает с run case, копирует exact manifest в `meta/` и хэширует его.
+- `input.source_pub_sha256` — SHA-256 exact baseline PUB;
+- `input.sentinel_sha256` — SHA-256 exact sentinel asset.
+
+Неизвестная UI-опция остаётся `null`; её нельзя восстанавливать по содержимому package задним числом.
+
+Adapter проверяет не только `case_id`, но и что оба input SHA-256 совпадают с exact bound run inputs. Также paths `rewritten_pub`, `extracted_assets_root` и, для Pack & Go, `package_file` обязаны совпасть с фактически захватываемыми paths. Это блокирует stale operator manifest от другого UI-run. Exact manifest затем копируется в `meta/` и хэшируется.
 
 ## Baseline
 
