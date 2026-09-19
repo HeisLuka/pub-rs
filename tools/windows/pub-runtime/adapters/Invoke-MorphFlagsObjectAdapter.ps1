@@ -9,6 +9,8 @@ $ErrorActionPreference = "Stop"
 $runtimeRoot = Split-Path -Parent $PSScriptRoot
 Import-Module (Join-Path $runtimeRoot "PubRuntime.psm1") -Force
 
+$KnownHelpSha256 = "1e7f38b3ce1d0d956815992b15d361c405fc4bbdced5cdabb3c4581327cc183e"
+
 function Get-OracleTagValue {
     param(
         [Parameter(Mandatory = $true)]
@@ -32,33 +34,184 @@ function Get-OracleTagValue {
     return $null
 }
 
+function Get-DescriptorProperty {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Object,
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property) {
+        return $null
+    }
+
+    return $property.Value
+}
+
+function Read-MorphTargetDescriptor {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$SourceSha256,
+        [Parameter(Mandatory = $true)]
+        [string]$MetaDir
+    )
+
+    if ([string]::IsNullOrWhiteSpace($env:PUB_MORPH_TARGET_DESCRIPTOR)) {
+        return $null
+    }
+
+    $descriptorSource = (Resolve-Path -LiteralPath $env:PUB_MORPH_TARGET_DESCRIPTOR).Path
+    $descriptor = Get-Content -LiteralPath $descriptorSource -Raw | ConvertFrom-Json
+
+    if ([string]$descriptor.schema -ne "pub-morph-target-descriptor/v1") {
+        throw "Неожиданная schema MORPH target descriptor: $($descriptor.schema)"
+    }
+
+    $descriptorSourceSha = ([string]$descriptor.source_sha256).ToLowerInvariant()
+    if ($descriptorSourceSha -ne $SourceSha256.ToLowerInvariant()) {
+        throw "MORPH target descriptor привязан к source_sha256=$descriptorSourceSha, текущий source=$SourceSha256"
+    }
+
+    $crosswalk = Get-DescriptorProperty -Object $descriptor -Name "crosswalk"
+    if ($null -eq $crosswalk -or [string]$crosswalk.state -ne "confirmed") {
+        throw "MORPH target descriptor должен иметь crosswalk.state=confirmed"
+    }
+
+    $ohTrackValue = Get-DescriptorProperty -Object $crosswalk -Name "object_tracking_oh"
+    if ($null -eq $ohTrackValue) {
+        throw "Подтверждённый MORPH descriptor обязан сохранять ObjectTracking.OhTrack"
+    }
+
+    $descriptorDestination = Join-Path $MetaDir "morph-target-descriptor.json"
+    $binding = Copy-PubBoundFile -Source $descriptorSource -Destination $descriptorDestination
+
+    return [ordered]@{
+        parsed = $descriptor
+        binding = $binding
+        wizard_tag = [int]$descriptor.wizard_tag
+        wizard_tag_instance = [int]$descriptor.wizard_tag_instance
+        object_tracking_oh = [int]$ohTrackValue
+    }
+}
+
+function Add-WizardPairMatchesRecursive {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Shape,
+        [Parameter(Mandatory = $true)]
+        [int]$PageIndex,
+        [Parameter(Mandatory = $true)]
+        [string]$TraversalPath,
+        [Parameter(Mandatory = $true)]
+        [int]$WizardTag,
+        [Parameter(Mandatory = $true)]
+        [int]$WizardTagInstance,
+        [Parameter(Mandatory = $true)]
+        [System.Collections.ArrayList]$Matches
+    )
+
+    try {
+        if ([int]$Shape.WizardTag -eq $WizardTag -and [int]$Shape.WizardTagInstance -eq $WizardTagInstance) {
+            [void]$Matches.Add([ordered]@{
+                page_index = $PageIndex
+                shape_index = $null
+                traversal_path = $TraversalPath
+                page = $null
+                shape = $Shape
+                locator = "wizard_tag_instance"
+            })
+        }
+    }
+    catch {
+        # Shape без доступного wizard identity не является совпадением.
+    }
+
+    $groupCount = 0
+    try {
+        $groupCount = [int]$Shape.GroupItems.Count
+    }
+    catch {
+        return
+    }
+
+    for ($i = 1; $i -le $groupCount; $i++) {
+        try {
+            $child = $Shape.GroupItems.Item($i)
+            Add-WizardPairMatchesRecursive -Shape $child -PageIndex $PageIndex -TraversalPath "$TraversalPath/group[$i]" -WizardTag $WizardTag -WizardTagInstance $WizardTagInstance -Matches $Matches
+        }
+        catch {
+            # Ошибка одного group member не превращается в совпадение.
+        }
+    }
+}
+
 function Find-MorphTarget {
     param(
         [Parameter(Mandatory = $true)]
-        $Document
+        $Document,
+        [Parameter(Mandatory = $true)]
+        [string]$SourceSha256,
+        [Parameter(Mandatory = $false)]
+        $Descriptor,
+        [switch]$DerivedFromVerifiedSource
     )
 
-    $matches = @()
+    $taggedMatches = @()
     for ($pageIndex = 1; $pageIndex -le [int]$Document.Pages.Count; $pageIndex++) {
         $page = $Document.Pages.Item($pageIndex)
         for ($shapeIndex = 1; $shapeIndex -le [int]$page.Shapes.Count; $shapeIndex++) {
             $shape = $page.Shapes.Item($shapeIndex)
             if ((Get-OracleTagValue -Shape $shape -TagName "PUB_ORACLE_ID") -eq "MORPH_TARGET") {
-                $matches += [ordered]@{
+                $taggedMatches += [ordered]@{
                     page_index = $pageIndex
                     shape_index = $shapeIndex
+                    traversal_path = "page[$pageIndex]/shape[$shapeIndex]"
                     page = $page
                     shape = $shape
+                    locator = "oracle_tag"
+                    object_tracking_oh = $null
                 }
             }
         }
     }
 
-    if ($matches.Count -ne 1) {
-        throw "Fixture должен содержать ровно один PUB_ORACLE_ID=MORPH_TARGET; найдено: $($matches.Count)"
+    if ($taggedMatches.Count -eq 1) {
+        return $taggedMatches[0]
+    }
+    if ($taggedMatches.Count -gt 1) {
+        throw "Fixture содержит несколько PUB_ORACLE_ID=MORPH_TARGET: $($taggedMatches.Count)"
     }
 
-    return $matches[0]
+    if ($null -eq $Descriptor) {
+        if ($SourceSha256.ToLowerInvariant() -eq $KnownHelpSha256) {
+            throw "Exact help.pub нельзя мутировать без PUB_MORPH_TARGET_DESCRIPTOR с подтверждённым ObjectTracking crosswalk"
+        }
+        throw "Fixture без MORPH_TARGET требует подтверждённый MORPH target descriptor"
+    }
+
+    if (-not $DerivedFromVerifiedSource -and $SourceSha256.ToLowerInvariant() -ne ([string]$Descriptor.parsed.source_sha256).ToLowerInvariant()) {
+        throw "Descriptor/source SHA mismatch"
+    }
+
+    $matches = New-Object System.Collections.ArrayList
+    for ($pageIndex = 1; $pageIndex -le [int]$Document.Pages.Count; $pageIndex++) {
+        $page = $Document.Pages.Item($pageIndex)
+        for ($shapeIndex = 1; $shapeIndex -le [int]$page.Shapes.Count; $shapeIndex++) {
+            $shape = $page.Shapes.Item($shapeIndex)
+            Add-WizardPairMatchesRecursive -Shape $shape -PageIndex $pageIndex -TraversalPath "page[$pageIndex]/shape[$shapeIndex]" -WizardTag ([int]$Descriptor.wizard_tag) -WizardTagInstance ([int]$Descriptor.wizard_tag_instance) -Matches $matches
+        }
+    }
+
+    if ($matches.Count -ne 1) {
+        throw "WizardTag=$($Descriptor.wizard_tag) / Instance=$($Descriptor.wizard_tag_instance) должен дать ровно один shape; найдено: $($matches.Count)"
+    }
+
+    $target = $matches[0]
+    $target.page = $Document.Pages.Item([int]$target.page_index)
+    $target.object_tracking_oh = [int]$Descriptor.object_tracking_oh
+    return $target
 }
 
 function Get-MorphSnapshot {
