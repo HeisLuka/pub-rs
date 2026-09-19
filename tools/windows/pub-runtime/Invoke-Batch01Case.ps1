@@ -146,8 +146,17 @@ if ($caseMatches.Count -ne 1) {
 
 $selection = $caseMatches[0]
 $waveSnapshot = [string]$selection.wave.snapshot
-if ($waveSnapshot -ne $SnapshotId) {
-    throw "Snapshot mismatch: case требует $waveSnapshot, передан $SnapshotId"
+$snapshotProperty = $plan.snapshots.PSObject.Properties[$waveSnapshot]
+if ($null -eq $snapshotProperty) {
+    throw "Run-plan wave ссылается на неизвестный snapshot key=$waveSnapshot"
+}
+
+$requiredSnapshotLabel = [string](Get-OptionalProperty -Object $snapshotProperty.Value -Name "required_label")
+if ([string]::IsNullOrWhiteSpace($requiredSnapshotLabel)) {
+    throw "Snapshot key=$waveSnapshot не имеет required_label"
+}
+if ($requiredSnapshotLabel -ne $SnapshotId) {
+    throw "Snapshot mismatch: logical key=$waveSnapshot требует label=$requiredSnapshotLabel, передан $SnapshotId"
 }
 
 $state = [string](Get-OptionalProperty -Object $selection.case -Name "state")
