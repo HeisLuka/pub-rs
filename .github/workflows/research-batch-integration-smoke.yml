@@ -83,6 +83,28 @@ jobs:
             throw "Batch 01 structural plan/adapters check failed: $LASTEXITCODE"
           }
 
+      - name: Проверить fail-closed LAB-ENV без Publisher
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $legacy = Join-Path $env:SystemRoot "System32\\WindowsPowerShell\\v1.0\\powershell.exe"
+          $out = Join-Path $env:RUNNER_TEMP "lab-env-negative"
+
+          & $legacy -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\\tools\\windows\\pub-runtime\\Get-PubLabEnvironment.ps1" -SnapshotId "CI-NO-PUBLISHER" -OutputRoot $out -Repeat 2
+          $code = $LASTEXITCODE
+
+          if ($code -eq 0) {
+            throw "LAB-ENV неожиданно принял hosted runner без version-pinned Publisher."
+          }
+
+          $comparison = @(Get-ChildItem -LiteralPath $out -Recurse -Filter "comparison.json" -File -ErrorAction SilentlyContinue)
+          if ($comparison.Count -ne 0) {
+            throw "LAB-ENV записал comparison.json несмотря на отсутствие обязательного Publisher."
+          }
+
+          Write-Host "LAB_ENV_NO_PUBLISHER_EXIT=$code"
+          Write-Host "LAB_ENV_FAIL_CLOSED=OK"
+
       - name: Проверить exact локальные Parker fixtures
         shell: pwsh
         run: |
