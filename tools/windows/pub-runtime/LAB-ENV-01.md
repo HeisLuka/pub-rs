@@ -31,7 +31,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\windows\pub-runtime\Get-PubLabE
 - canonical fingerprint font registry set;
 - stable fingerprint всего перечисленного.
 
-По умолчанию выполняются два независимых Publisher-process capture. `comparison.json` сообщает, совпала ли стабильная часть manifest.
+По умолчанию выполняются два независимых Publisher-process capture. Каждый preflight создаёт отдельный immutable каталог `<OutputRoot>/<SnapshotId>/<UTC-run-id>/`; предыдущие `environment-*.json` и `comparison.json` никогда не перезаписываются. `comparison.json` сообщает, совпала ли стабильная часть manifest.
 
 ## Важное ограничение
 
