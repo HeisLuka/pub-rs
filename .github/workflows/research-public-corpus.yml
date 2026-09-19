@@ -285,6 +285,30 @@ jobs:
                   "expect_scalars": [[2, 266]],
               },
               {
+                  "name": "apache-sample98",
+                  "role": "lineage-control",
+                  "url": "https://raw.githubusercontent.com/apache/poi/b66d71f85030b060df543702d8c0d64dfac922c3/test-data/publisher/Sample98.pub",
+                  "expect_scalars": [[1, 266]],
+              },
+              {
+                  "name": "apache-sample2000",
+                  "role": "lineage-control",
+                  "url": "https://raw.githubusercontent.com/apache/poi/b66d71f85030b060df543702d8c0d64dfac922c3/test-data/publisher/Sample2000.pub",
+                  "expect_scalars": [[1, 266]],
+              },
+              {
+                  "name": "apache-sample2007",
+                  "role": "lineage-control",
+                  "url": "https://raw.githubusercontent.com/apache/poi/b66d71f85030b060df543702d8c0d64dfac922c3/test-data/publisher/Sample.pub",
+                  "expect_scalars": [[1, 266]],
+              },
+              {
+                  "name": "apache-sample2010",
+                  "role": "lineage-control",
+                  "url": "https://raw.githubusercontent.com/apache/poi/b66d71f85030b060df543702d8c0d64dfac922c3/test-data/publisher/Sample_2010.pub",
+                  "expect_scalars": [[1, 266]],
+              },
+              {
                   "name": "virtual-labs-web-master-root",
                   "role": "new-corpus",
                   "url": "https://raw.githubusercontent.com/virtual-labs/virtual-smart-structures-and-dynamics-laboratory-iitd/665a5bd751d5e95393d45a74e3d7dcdab2fd56ed/src/lab/Web%20Master%20Vinod%20Sharma.pub",
