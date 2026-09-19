@@ -464,9 +464,38 @@ jobs:
                   })
               return hits
 
+          def extract_story_texts(quill, descriptors):
+              # libmspub STRS/TEXT join: STRS stores character lengths,
+              # TEXT is their concatenated UTF-16LE payload.
+              strs = next((d for d in descriptors if d["name"] == "STRS"), None)
+              text = next((d for d in descriptors if d["name"] == "TEXT"), None)
+              if not strs or not text:
+                  return {}
+              payload = quill[strs["offset"]:strs["offset"] + strs["length"]]
+              if len(payload) < 8:
+                  return {}
+              count = u32(payload, 0)
+              rel = u32(payload, 4)
+              lengths_off = 4 + rel
+              if count > 10000 or lengths_off + 4 * count > len(payload):
+                  return {}
+              lengths = [u32(payload, lengths_off + 4 * i) for i in range(count)]
+              text_bytes = quill[text["offset"]:text["offset"] + text["length"]]
+              out = {}
+              pos = 0
+              for i, chars in enumerate(lengths):
+                  size = chars * 2
+                  if pos + size > len(text_bytes):
+                      break
+                  story = text_bytes[pos:pos + size].decode("utf-16le", "replace")
+                  out[i] = story
+                  pos += size
+              return out
+
           def scan(raw):
               quill, contents = get_quill(raw)
               descriptors = quill_descriptors(quill)
+              stories = extract_story_texts(quill, descriptors)
               tokens = []
               for d in descriptors:
                   if d["name"] != "TOKN":
@@ -483,6 +512,7 @@ jobs:
                       "descriptor": d,
                       "plc_count": plc_count,
                       "plc_type": plc_type,
+                      "story_text": stories.get(d["id"], "")[:500],
                       "target_sections": sections,
                   })
               scalars = []
