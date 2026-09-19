@@ -28,7 +28,21 @@ foreach ($fixture in $manifest.fixtures) {
         continue
     }
 
-    $path = Join-Path $root ("{0}.pub" -f $fixture.fixture_id)
+    $localFilenameProperty = $fixture.PSObject.Properties["local_filename"]
+    $localFilename = if ($null -eq $localFilenameProperty) { $null } else { [string]$localFilenameProperty.Value }
+    if ([string]::IsNullOrWhiteSpace($localFilename)) {
+        $rows += [pscustomobject]@{
+            fixture_id = $fixture.fixture_id
+            availability = $fixture.availability
+            state = "MANIFEST_ERROR"
+            expected_sha256 = $expected
+            actual_sha256 = ""
+        }
+        $failed = $true
+        continue
+    }
+
+    $path = Join-Path $root $localFilename
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
         $rows += [pscustomobject]@{
             fixture_id = $fixture.fixture_id
