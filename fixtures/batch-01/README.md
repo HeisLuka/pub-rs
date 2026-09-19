@@ -69,3 +69,44 @@ Story family использует **два** pinned source states:
 2. `STORY-LINKED-A-B` — source для break mutation.
 
 `STORY-LINK-BROKEN` — generated output class после одной `BreakForwardLink` mutation, а не третий вручную созданный source. Это уменьшает риск, что независимая ручная сборка добавит лишний binary delta.
+
+## External pinned fixtures
+
+`external_pinned` означает: identity fixture зафиксирована полным SHA-256, размером и immutable upstream commit/path, но bytes не vendored в `pub-rs`.
+
+Сейчас так оформлен `ALIGN-STYLE-TOPOLOGY-BASE`:
+
+- upstream: `aspose-pub/Aspose.PUB-for-.NET`;
+- commit: `beee619f9a4b7e2c8908e0fa132f4f4650b08975`;
+- path: `Examples/Data/halloween-flyer.pub`;
+- Git blob SHA-1: `6610c53ff345d4e11e03b7fffd1cd128b3ae4052`;
+- size: `306176`;
+- SHA-256: `f079765650af152e1ae1fbfded757f679c588ceea884b77329a240c578884c25`.
+
+Получение в lab:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File .\fixtures\batch-01\Get-Batch01ExternalFixtures.ps1 `
+  -FixtureRoot C:\pub-lab\batch-01
+```
+
+Downloader использует pinned commit URL и до переименования проверяет и размер, и SHA-256. Существующий локальный файл с другим hash является hard error.
+
+### Alignment style locator
+
+Upstream Halloween fixture не модифицируется только ради добавления нашего Tag. Для `style` family runtime adapter разрешает fallback locator только при exact source SHA выше и только если одновременно выполняются:
+
+- Shape.Name = `Text Box 20`;
+- text содержит `Children`;
+- initial `ParagraphFormat.Alignment = 2`;
+- match ровно один.
+
+Это заново проверяет нужный semantic target на exact upstream bytes и не предполагает, что старый `realtest/txt-same-02/control-input.pub` byte-identical upstream-файлу.
+
+Первый style pass теперь содержит только реальные single-mutation transitions:
+
+- 2→1;
+- 2→3;
+- 2→4.
+
+Прямой 2→2 исключён как no-op. Обратный 1→2 разрешается только после того, как output 2→1 отдельно pin'ится как новый source fixture.
