@@ -65,16 +65,13 @@ fn main() -> Result<(), Box<dyn Error>> {
             }
             Contents0x2cDirectorySlot::Occupied { .. } => {
                 occupied += 1;
-                let reference = parse_confirmed_chunk_reference(
-                    &bytes,
-                    &trailer.directory,
-                    seq_num,
-                )?
-                .ok_or_else(|| {
-                    invalid_data(format!(
-                        "occupied slot {seq_num} неожиданно не дал chunk reference"
-                    ))
-                })?;
+                let reference =
+                    parse_confirmed_chunk_reference(&bytes, &trailer.directory, seq_num)?
+                        .ok_or_else(|| {
+                            invalid_data(format!(
+                                "occupied slot {seq_num} неожиданно не дал chunk reference"
+                            ))
+                        })?;
 
                 if reference.raw_types.len() != 1 {
                     return Err(invalid_data(format!(
@@ -101,10 +98,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                 let raw_type = reference.raw_types[0].value;
                 *raw_type_counts.entry(raw_type).or_insert(0) += 1;
 
-                let chunk_offset = usize::try_from(reference.chunk_offsets[0].value)
-                    .map_err(|_| invalid_data(format!(
-                        "seqNum {seq_num}: chunk offset не помещается в usize"
-                    )))?;
+                let chunk_offset =
+                    usize::try_from(reference.chunk_offsets[0].value).map_err(|_| {
+                        invalid_data(format!(
+                            "seqNum {seq_num}: chunk offset не помещается в usize"
+                        ))
+                    })?;
                 if chunk_offset >= header.trailer_offset as usize {
                     return Err(invalid_data(format!(
                         "seqNum {seq_num}: chunk offset {chunk_offset} попал в trailer или за него (trailer={})",
@@ -134,10 +133,7 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     println!("fixture=example_multipage.pub");
     println!("contents_len={}", bytes.len());
-    println!(
-        "revision=0x{:04X}",
-        header.preamble.serialization_revision
-    );
+    println!("revision=0x{:04X}", header.preamble.serialization_revision);
     println!("trailer_offset={}", header.trailer_offset);
     println!("trailer_declared_length={}", trailer.declared_length);
     println!("directory_slots={}", trailer.directory.slots.len());
