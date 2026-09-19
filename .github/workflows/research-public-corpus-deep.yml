@@ -1,0 +1,234 @@
+name: Глубокий анализ публичного корпуса PUB
+
+on:
+  push:
+    branches:
+      - research/public-corpus-acquisition-2026-09-19
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v5
+      - name: Установить минимальный OLE-ридер
+        run: python -m pip install --disable-pip-version-check olefile
+      - name: Снять версии, потоки, embedded OLE и differential pair
+        shell: python
+        run: |
+          import hashlib
+          import io
+          import json
+          import re
+          import struct
+          import urllib.request
+
+          import olefile
+
+          sources = [
+              ("UK Willingham Newsletter Summer 2022", "GB", "https://willingham-by-stow.parish.lincolnshire.gov.uk/downloads/file/343/newsletter-summer-2022"),
+              ("Germany Jena Roll-Up template", "DE", "https://www.uni-jena.de/unijenamedia/364815/rollup-tem-pub.pub"),
+              ("USA Adelphi Program Flyer", "US", "https://www.adelphi.edu/brand/wp-content/uploads/sites/55/2020/08/Adelphi_ProgramFlyer.pub"),
+              ("USA Adelphi Event Flyer", "US", "https://www.adelphi.edu/brand/wp-content/uploads/sites/55/2020/08/Adelphi_EventFlyer.pub"),
+              ("USA Adelphi One Page", "US", "https://www.adelphi.edu/brand/wp-content/uploads/sites/55/2020/08/Adelphi-OnePage.pub"),
+              ("USA Adelphi TriFold", "US", "https://www.adelphi.edu/brand/wp-content/uploads/sites/55/2020/08/Adelphi-TriFold.pub"),
+              ("USA Adelphi Newsletter", "US", "https://www.adelphi.edu/brand/wp-content/uploads/sites/55/2020/08/Adelphi-Newsletter.pub"),
+              ("USA Wichita 8.5x11 full bleed template", "US", "https://www.wichita.edu/services/printing/_documents/Publisher_8.5x11_portrait_fullbleed_template.pub"),
+              ("Netherlands BookCrossing Dettie color labels", "NL", "https://www.bookcrossing.nl/down/labelsdettie.kl.pub"),
+              ("Netherlands BookCrossing Dettie black-white labels", "NL", "https://www.bookcrossing.nl/down/labelsdettie.zw_w.pub"),
+              ("Netherlands BookCrossing Yvonnep label", "NL", "https://www.bookcrossing.nl/down/bookcrossing-yvonnep.pub"),
+              ("Netherlands BookCrossing Crossing the World", "NL", "https://www.bookcrossing.nl/down/crossingtheworld.pub"),
+              ("Netherlands BookCrossing Goed Boek", "NL", "https://www.bookcrossing.nl/down/goedboek-yvonnep.pub"),
+              ("Netherlands BookCrossing Hadewychshuis sticker sheet", "NL", "https://www.bookcrossing.nl/down/hadewychshuis-stickervelenvelop.pub"),
+              ("Online-Convert example.pub", "INT", "https://example-files.online-convert.com/document/pub/example.pub"),
+              ("Online-Convert example_multipage.pub", "INT", "https://example-files.online-convert.com/document/pub/example_multipage.pub"),
+          ]
+
+          version_names = {
+              125: "Publisher 3",
+              136: "Publisher 4",
+              616: "Publisher 5",
+              717: "Publisher 6",
+              1000: "Publisher 10",
+          }
+
+          def u16(data, offset):
+              return struct.unpack_from("<H", data, offset)[0] if offset + 2 <= len(data) else None
+
+          def stream_bytes(ole, path):
+              parts = path.split("/")
+              return ole.openstream(parts).read()
+
+          def strings_from_compobj(data):
+              ascii_strings = [
+                  m.decode("latin1", "replace")
+                  for m in re.findall(rb"[\x20-\x7e]{4,}", data)
+              ]
+              utf16_strings = []
+              for m in re.findall(rb"(?:[\x20-\x7e]\x00){4,}", data):
+                  try:
+                      utf16_strings.append(m.decode("utf-16le"))
+                  except Exception:
+                      pass
+              out = []
+              for s in ascii_strings + utf16_strings:
+                  if s not in out:
+                      out.append(s)
+              return out[:20]
+
+          def stream_summary(ole, path):
+              if not ole.exists(path.split("/")):
+                  return None
+              data = stream_bytes(ole, path)
+              return {
+                  "size": len(data),
+                  "sha256": hashlib.sha256(data).hexdigest(),
+              }
+
+          payloads = {}
+          report = []
+
+          for name, country, url in sources:
+              request = urllib.request.Request(
+                  url,
+                  headers={"User-Agent": "pub-rs-corpus-research/1.0 (+https://github.com/HeisLuka/pub-rs)"},
+              )
+              with urllib.request.urlopen(request, timeout=45) as response:
+                  raw = response.read()
+
+              payloads[name] = raw
+              item = {
+                  "name": name,
+                  "country": country,
+                  "url": url,
+                  "size": len(raw),
+                  "sha256": hashlib.sha256(raw).hexdigest(),
+              }
+
+              ole = olefile.OleFileIO(io.BytesIO(raw))
+              paths = ["/".join(parts) for parts in ole.listdir(streams=True, storages=True)]
+              item["root_clsid"] = str(getattr(ole.root, "clsid", None))
+              item["has_quill"] = any(p == "Quill" or p.startswith("Quill/") for p in paths)
+              item["has_escher_stm"] = "Escher/EscherStm" in paths
+              item["has_escher_delay_stm"] = "Escher/EscherDelayStm" in paths
+
+              contents = stream_bytes(ole, "Contents")
+              version0 = u16(contents, 4)
+              version2 = u16(contents, 12)
+              legacy_version = version2 if version0 == 300 else version0
+              item["contents_header"] = {
+                  "family_word": u16(contents, 2),
+                  "version0": version0,
+                  "version2": version2,
+                  "legacy_version_resolved": legacy_version,
+                  "legacy_version_name": version_names.get(legacy_version),
+                  "revision_u16_at_0c": u16(contents, 12),
+              }
+
+              try:
+                  doc_summary = ole.getproperties("\x05DocumentSummaryInformation")
+              except Exception:
+                  doc_summary = {}
+              piddsi = doc_summary.get(23)
+              item["piddsi_version"] = piddsi
+              item["office_major"] = (piddsi >> 16) if isinstance(piddsi, int) else None
+
+              important = {}
+              for path in [
+                  "Contents",
+                  "Quill/QuillSub/CONTENTS",
+                  "Escher/EscherStm",
+                  "Escher/EscherDelayStm",
+              ]:
+                  value = stream_summary(ole, path)
+                  if value is not None:
+                      important[path] = value
+              item["important_streams"] = important
+
+              embedded = []
+              object_roots = sorted(
+                  {
+                      p.split("/")[1]
+                      for p in paths
+                      if p.startswith("Objects/Object ")
+                  }
+              )
+              for object_name in object_roots:
+                  base = f"Objects/{object_name}"
+                  obj_paths = [p for p in paths if p == base or p.startswith(base + "/")]
+                  entry = {
+                      "storage": base,
+                      "paths": obj_paths,
+                      "has_word_document": f"{base}/WordDocument" in obj_paths,
+                      "has_contents": f"{base}/Contents" in obj_paths,
+                  }
+                  compobj_path = f"{base}/\x01CompObj"
+                  if ole.exists(compobj_path.split("/")):
+                      compobj = stream_bytes(ole, compobj_path)
+                      entry["compobj_sha256"] = hashlib.sha256(compobj).hexdigest()
+                      entry["compobj_strings"] = strings_from_compobj(compobj)
+                  embedded.append(entry)
+              item["embedded_objects"] = embedded
+              ole.close()
+
+              report.append(item)
+              print(json.dumps(item, ensure_ascii=False, sort_keys=True))
+
+          def diff_bytes(a, b):
+              common = min(len(a), len(b))
+              differing = sum(x != y for x, y in zip(a[:common], b[:common]))
+              first = next((i for i, (x, y) in enumerate(zip(a[:common], b[:common])) if x != y), None)
+              return {
+                  "len_a": len(a),
+                  "len_b": len(b),
+                  "common_len": common,
+                  "different_bytes_in_common": differing,
+                  "length_delta": len(b) - len(a),
+                  "first_difference": first,
+                  "identical": a == b,
+              }
+
+          pair_a_name = "Netherlands BookCrossing Dettie color labels"
+          pair_b_name = "Netherlands BookCrossing Dettie black-white labels"
+          pair_a = payloads[pair_a_name]
+          pair_b = payloads[pair_b_name]
+          pair = {
+              "name_a": pair_a_name,
+              "name_b": pair_b_name,
+              "whole_file": diff_bytes(pair_a, pair_b),
+              "streams": {},
+          }
+          ole_a = olefile.OleFileIO(io.BytesIO(pair_a))
+          ole_b = olefile.OleFileIO(io.BytesIO(pair_b))
+          streams_a = {"/".join(p) for p in ole_a.listdir(streams=True, storages=False)}
+          streams_b = {"/".join(p) for p in ole_b.listdir(streams=True, storages=False)}
+          for path in sorted(streams_a | streams_b):
+              if path not in streams_a:
+                  pair["streams"][path] = {"only": "b"}
+              elif path not in streams_b:
+                  pair["streams"][path] = {"only": "a"}
+              else:
+                  a = stream_bytes(ole_a, path)
+                  b = stream_bytes(ole_b, path)
+                  pair["streams"][path] = {
+                      **diff_bytes(a, b),
+                      "sha256_a": hashlib.sha256(a).hexdigest(),
+                      "sha256_b": hashlib.sha256(b).hexdigest(),
+                  }
+          ole_a.close()
+          ole_b.close()
+
+          output = {"files": report, "dettie_pair": pair}
+          with open("corpus-deep-report.json", "w", encoding="utf-8") as f:
+              json.dump(output, f, ensure_ascii=False, indent=2)
+          print("DETTIE_PAIR", json.dumps(pair, ensure_ascii=False, sort_keys=True))
+      - name: Сохранить только метаданные анализа
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-corpus-deep-report
+          path: corpus-deep-report.json
+          if-no-files-found: error
+          retention-days: 7
