@@ -1,0 +1,54 @@
+name: Research — реальный Contents path example_multipage
+
+on:
+  push:
+    branches:
+      - research/validate-contents-path-example-multipage-v2
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Забрать исходники
+        uses: actions/checkout@v5
+
+      - name: Установить Rust
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Установить olefile
+        run: python -m pip install --disable-pip-version-check olefile
+
+      - name: Скачать exact public fixture
+        run: |
+          curl --fail --location --retry 3 --retry-delay 2             --output /tmp/example_multipage.pub             https://example-files.online-convert.com/document/pub/example_multipage.pub
+          echo "cabf449064f9151d279a3d8dbba777a3e18f3a8863ff60f940523ee4cd056a44  /tmp/example_multipage.pub"             | sha256sum --check -
+
+      - name: Извлечь только поток Contents
+        run: |
+          python - <<'PY'
+          import olefile
+
+          source = "/tmp/example_multipage.pub"
+          output = "/tmp/example_multipage.Contents.bin"
+
+          ole = olefile.OleFileIO(source)
+          try:
+              if not ole.exists("Contents"):
+                  raise SystemExit("В exact fixture отсутствует поток Contents")
+              data = ole.openstream("Contents").read()
+          finally:
+              ole.close()
+
+          with open(output, "wb") as f:
+              f.write(data)
+
+          print(f"contents_len={len(data)}")
+          PY
+
+      - name: Прогнать реальный Rust parser path
+        run: |
+          cargo run --quiet -p pub-contents --example validate_real_contents --             /tmp/example_multipage.Contents.bin
