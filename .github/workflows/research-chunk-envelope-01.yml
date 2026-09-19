@@ -1,0 +1,23 @@
+name: Research — chunk envelope 01
+
+on:
+  push:
+    branches:
+      - research/chunk-envelope-01
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Забрать исходники
+        uses: actions/checkout@v5
+
+      - name: Установить olefile
+        run: python -m pip install --disable-pip-version-check olefile
+
+      - name: Проверить chunk envelope и class-local поля
+        run: python .github/scripts/verify_chunk_envelope.py
