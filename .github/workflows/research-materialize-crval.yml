@@ -162,6 +162,93 @@ jobs:
           )
           PY
 
+      - name: Сохранить диагностику CRVAL при несовпадении
+        if: failure() && steps.existing.outputs.state == 'missing'
+        shell: bash
+        run: |
+          set -euo pipefail
+          python - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import json
+          import struct
+
+          source_path = Path("/tmp/parker-is.pub")
+          report = {
+              "schema": "pub-crval-materialization-diagnostic/v1",
+              "source_present": source_path.exists(),
+              "checks": [],
+              "derived": {},
+          }
+
+          if source_path.exists():
+              source = source_path.read_bytes()
+              report["source_size"] = len(source)
+              report["source_sha256"] = hashlib.sha256(source).hexdigest()
+
+              checks = [
+                  ("CRVAL01 TEXT", 0xF020, b"\x0d\x00"),
+                  ("CRVAL02/03/05 TEXT terminal", 0xF07C, b"\x0d\x00"),
+                  ("CRVAL05 TEXT next char", 0xF07E, b"\x54\x00"),
+                  ("CRVAL04/05 FDPP", 0xF410, struct.pack("<I", 0x027E)),
+                  ("CRVAL05 FDPC start", 0xF608, struct.pack("<I", 0x027C)),
+                  ("CRVAL05 FDPC end", 0xF60C, struct.pack("<I", 0x027E)),
+                  ("CRVAL05 STRS story 1", 0xFB8E, struct.pack("<I", 63)),
+                  ("CRVAL05 STRS story 2", 0xFB92, struct.pack("<I", 72)),
+              ]
+              for label, offset, expected in checks:
+                  actual = source[offset:offset + len(expected)]
+                  report["checks"].append({
+                      "label": label,
+                      "offset": f"0x{offset:X}",
+                      "expected": expected.hex(),
+                      "actual": actual.hex(),
+                      "matches": actual == expected,
+                  })
+
+              def overwrite(data: bytes, offset: int, after: bytes) -> bytes:
+                  out = bytearray(data)
+                  out[offset:offset + len(after)] = after
+                  return bytes(out)
+
+              outputs = {}
+              outputs["VAL-PARKER-BASELINE.pub"] = source
+              outputs["VAL-CRVAL01-INTERNAL-CR-TO-R.pub"] = overwrite(source, 0xF020, b"\x72\x00")
+              outputs["VAL-CRVAL02-TERMINAL-CR-TO-R.pub"] = overwrite(source, 0xF07C, b"\x72\x00")
+              outputs["VAL-CRVAL03-TERMINAL-CR-TO-LF.pub"] = overwrite(source, 0xF07C, b"\x0a\x00")
+              outputs["VAL-CRVAL04-FDPP-PLUS2.pub"] = overwrite(source, 0xF410, struct.pack("<I", 0x0280))
+
+              crval05 = source
+              crval05 = overwrite(crval05, 0xF07C, struct.pack("<H", 0x0054))
+              crval05 = overwrite(crval05, 0xF07E, struct.pack("<H", 0x000D))
+              crval05 = overwrite(crval05, 0xFB8E, struct.pack("<I", 64))
+              crval05 = overwrite(crval05, 0xFB92, struct.pack("<I", 71))
+              crval05 = overwrite(crval05, 0xF410, struct.pack("<I", 0x0280))
+              crval05 = overwrite(crval05, 0xF608, struct.pack("<I", 0x027E))
+              crval05 = overwrite(crval05, 0xF60C, struct.pack("<I", 0x0280))
+              outputs["VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1.pub"] = crval05
+
+              for name, data in outputs.items():
+                  report["derived"][name] = {
+                      "size": len(data),
+                      "sha256": hashlib.sha256(data).hexdigest(),
+                  }
+
+          Path("/tmp/crval-diagnostic.json").write_text(
+              json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
+          print(json.dumps(report, ensure_ascii=False, indent=2))
+          PY
+
+      - name: Загрузить диагностику CRVAL
+        if: failure() && steps.existing.outputs.state == 'missing'
+        uses: actions/upload-artifact@v4
+        with:
+          name: crval-materialization-diagnostic
+          path: /tmp/crval-diagnostic.json
+          if-no-files-found: error
+
       - name: Зафиксировать exact bytes в research branch
         if: steps.existing.outputs.state == 'missing'
         shell: bash
