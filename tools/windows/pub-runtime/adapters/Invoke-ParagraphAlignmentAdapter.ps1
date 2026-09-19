@@ -35,31 +35,101 @@ function Get-OracleTagValue {
 function Find-AlignmentTarget {
     param(
         [Parameter(Mandatory = $true)]
-        $Document
+        $Document,
+        [Parameter(Mandatory = $true)]
+        [string]$Family,
+        [Parameter(Mandatory = $true)]
+        [string]$SourceSha256
     )
 
-    $matches = @()
+    $taggedMatches = @()
     for ($pageIndex = 1; $pageIndex -le [int]$Document.Pages.Count; $pageIndex++) {
         $page = $Document.Pages.Item($pageIndex)
         for ($shapeIndex = 1; $shapeIndex -le [int]$page.Shapes.Count; $shapeIndex++) {
             $shape = $page.Shapes.Item($shapeIndex)
             $tagValue = Get-OracleTagValue -Shape $shape -TagName "PUB_ORACLE_ID"
             if ($tagValue -eq "ALIGN_TARGET") {
-                $matches += [ordered]@{
+                $taggedMatches += [ordered]@{
                     page_index = $pageIndex
                     shape_index = $shapeIndex
                     page = $page
                     shape = $shape
+                    locator = "oracle_tag"
                 }
             }
         }
     }
 
-    if ($matches.Count -ne 1) {
-        throw "Fixture должен содержать ровно один PUB_ORACLE_ID=ALIGN_TARGET; найдено: $($matches.Count)"
+    if ($taggedMatches.Count -eq 1) {
+        return $taggedMatches[0]
+    }
+    if ($taggedMatches.Count -gt 1) {
+        throw "Fixture содержит несколько PUB_ORACLE_ID=ALIGN_TARGET: $($taggedMatches.Count)"
     }
 
-    return $matches[0]
+    if ($Family -ne "style") {
+        throw "Fixture family=$Family требует ровно один PUB_ORACLE_ID=ALIGN_TARGET"
+    }
+
+    $knownHalloweenSha256 = "f079765650af152e1ae1fbfded757f679c588ceea884b77329a240c578884c25"
+    if ($SourceSha256.ToLowerInvariant() -ne $knownHalloweenSha256) {
+        throw "Style fallback разрешён только для exact halloween-flyer.pub SHA-256=$knownHalloweenSha256; получен $SourceSha256"
+    }
+
+    $fallbackMatches = @()
+    for ($pageIndex = 1; $pageIndex -le [int]$Document.Pages.Count; $pageIndex++) {
+        $page = $Document.Pages.Item($pageIndex)
+        for ($shapeIndex = 1; $shapeIndex -le [int]$page.Shapes.Count; $shapeIndex++) {
+            $shape = $page.Shapes.Item($shapeIndex)
+
+            $name = $null
+            try {
+                $name = [string]$shape.Name
+            }
+            catch {
+                continue
+            }
+
+            if ($name -ne "Text Box 20") {
+                continue
+            }
+
+            try {
+                if ([int]$shape.HasTextFrame -eq 0) {
+                    continue
+                }
+
+                $text = [string]$shape.TextFrame.TextRange.Text
+                if (-not $text.Contains("Children")) {
+                    continue
+                }
+
+                $alignment = [int]$shape.TextFrame.TextRange.ParagraphFormat.Alignment
+                if ($alignment -ne 2) {
+                    throw "Known Halloween target найден, но initial Alignment=$alignment вместо 2"
+                }
+
+                $fallbackMatches += [ordered]@{
+                    page_index = $pageIndex
+                    shape_index = $shapeIndex
+                    page = $page
+                    shape = $shape
+                    locator = "known_halloween_sha_name_text_alignment"
+                }
+            }
+            catch {
+                if ($_.Exception.Message -like "Known Halloween target*") {
+                    throw
+                }
+            }
+        }
+    }
+
+    if ($fallbackMatches.Count -ne 1) {
+        throw "Exact Halloween fallback требует ровно один Text Box 20 с needle Children и initial Alignment=2; найдено: $($fallbackMatches.Count)"
+    }
+
+    return $fallbackMatches[0]
 }
 
 function Get-AlignmentSnapshot {
@@ -81,6 +151,7 @@ function Get-AlignmentSnapshot {
         shape_id = Get-PubSafeValue { [int]$shape.ID } "Shape.ID"
         shape_name = Get-PubSafeValue { [string]$shape.Name } "Shape.Name"
         oracle_tag = Get-OracleTagValue -Shape $shape -TagName "PUB_ORACLE_ID"
+        locator = if ($Target.Contains("locator")) { [string]$Target.locator } else { "unknown" }
         text = Get-PubSafeValue { [string]$shape.TextFrame.TextRange.Text } "TextRange.Text"
         alignment = Get-PubSafeValue { [int]$shape.TextFrame.TextRange.ParagraphFormat.Alignment } "ParagraphFormat.Alignment"
     }
@@ -113,6 +184,8 @@ $saveFormats = @{
 }
 $saveFormatValue = [int]$saveFormats[$writer]
 
+$sourceRecord = Get-PubFileRecord ([string]$context.source_pub)
+
 $result = [ordered]@{
     schema = "pub-para-align-remainder/adapter-result/v1"
     experiment_id = [string]$context.experiment_id
@@ -120,6 +193,7 @@ $result = [ordered]@{
     family = $family
     requested_alignment = $alignmentValue
     writer = $writer
+    source_sha256 = $sourceRecord.sha256
     publisher = $null
     before = $null
     setter = [ordered]@{
@@ -159,7 +233,7 @@ try {
 
     # Для semantic mutation публикация открывается не read-only; AddToRecentFiles отключён.
     $document = $application.Open([string]$context.source_pub, $false, $false)
-    $target = Find-AlignmentTarget -Document $document
+    $target = Find-AlignmentTarget -Document $document -Family $family -SourceSha256 $sourceRecord.sha256
     $result.before = Get-AlignmentSnapshot -Target $target -Phase "before"
 
     try {
@@ -224,7 +298,7 @@ if ($result.save.state -eq "ok") {
     try {
         $reopenApplication = New-PubPublisherApplication
         $reopenDocument = $reopenApplication.Open([string]$result.save.path, $true, $false)
-        $reopenTarget = Find-AlignmentTarget -Document $reopenDocument
+        $reopenTarget = Find-AlignmentTarget -Document $reopenDocument -Family $family -SourceSha256 $sourceRecord.sha256
         $result.reopen = Get-AlignmentSnapshot -Target $reopenTarget -Phase "reopen"
     }
     catch {
