@@ -44,14 +44,20 @@ foreach ($fixture in $manifest.fixtures) {
 
     $path = Join-Path $root $localFilename
     if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+        $availability = [string]$fixture.availability
+        $isRequiredNow = $availability -eq "pinned" -or $availability -eq "external_pinned"
+
         $rows += [pscustomobject]@{
             fixture_id = $fixture.fixture_id
-            availability = $fixture.availability
-            state = "MISSING"
+            availability = $availability
+            state = if ($isRequiredNow) { "MISSING_REQUIRED" } else { "MISSING_PENDING" }
             expected_sha256 = $expected
             actual_sha256 = ""
         }
-        $failed = $true
+
+        if ($isRequiredNow) {
+            $failed = $true
+        }
         continue
     }
 
