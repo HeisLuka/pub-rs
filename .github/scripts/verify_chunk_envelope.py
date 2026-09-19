@@ -397,6 +397,10 @@ def inspect_fixture(name, url):
     document_fields = []
     document_watermarks = []
     document_false_markers = []
+    document_wire_types = Counter()
+    document_field_pairs = Counter()
+    page_wire_types = Counter()
+    page_field_pairs = Counter()
     page_oid_fields = []
     page_oid_pairs = []
 
@@ -416,6 +420,8 @@ def inspect_fixture(name, url):
                 [(field["id"], field["type"]) for field in fields]
             )
             for field in fields:
+                document_wire_types[field["type"]] += 1
+                document_field_pairs[(field["id"], field["type"])] += 1
                 if field["id"] == 0x23:
                     document_watermarks.append(
                         (
@@ -432,6 +438,8 @@ def inspect_fixture(name, url):
                 (ref["seq_num"], [(f["id"], f["type"]) for f in fields])
             )
             for field in fields:
+                page_wire_types[field["type"]] += 1
+                page_field_pairs[(field["id"], field["type"])] += 1
                 if field["type"] == 0x28:
                     page_oid_fields.append((ref["seq_num"], field["id"]))
                     if field["id"] == 0x06:
@@ -451,7 +459,23 @@ def inspect_fixture(name, url):
     print("document_count =", len(document_fields))
     print("document_field0x23 =", document_watermarks)
     print("document_field0x39_wire0x00 =", document_false_markers)
+    print(
+        "document_wire_types =",
+        {f"0x{k:02X}": v for k, v in sorted(document_wire_types.items())},
+    )
+    print(
+        "document_field_pairs =",
+        {f"0x{k[0]:02X}/0x{k[1]:02X}": v for k, v in sorted(document_field_pairs.items())},
+    )
     print("page_count =", len(page_fields))
+    print(
+        "page_wire_types =",
+        {f"0x{k:02X}": v for k, v in sorted(page_wire_types.items())},
+    )
+    print(
+        "page_field_pairs =",
+        {f"0x{k[0]:02X}/0x{k[1]:02X}": v for k, v in sorted(page_field_pairs.items())},
+    )
     print("page_type0x28_fields =", page_oid_fields)
     print("page_field0x06_oid_pairs =", page_oid_pairs)
 
