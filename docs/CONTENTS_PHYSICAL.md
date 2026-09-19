@@ -50,6 +50,31 @@
 
 Основание: Canonical Claim PUB-C-121, OBS-029A, OBS-006B и точный PRONOM Publisher 2002.
 
+## Корень trailer в 0x2C
+
+Canonical Claim PUB-C-124 закрывает следующий физический слой после pointer по `Contents+0x1A`. В пяти напрямую проверенных 0x2C PUB (Publisher 2002, 2003, 2007, 2010 и 2013-class):
+
+```text
+u32 declared_trailer_length
+01:20 <u32>
+02:20 <u32>
+03:90 <directory>
+```
+
+Наблюдённые отношения:
+
+- `trailer_offset + declared_trailer_length == Contents.len()`;
+- root `0x01` равен фактическому числу directory slots;
+- root `0x02` равен maximum ordinal = `slot_count - 1`;
+- root `0x03/0x90` содержит ровно позиционный directory;
+- в пяти проверенных файлах три root-блока полностью заполняют declared trailer.
+
+В коде эти отношения разделены на **physical grammar** и **observed invariants**. `parse_confirmed_0x2c_trailer_root` требует exact id/type трёх подтверждённых roots и проверяет declared range, но не делает равенства count/max-ordinal универсальными условиями успешного parse. Их можно проверить отдельными методами `observed_slot_count_matches_directory` и `observed_max_ordinal_matches_directory`.
+
+Если новый вариант содержит байты после трёх известных roots внутри declared trailer, parser не угадывает их грамматику и не выбрасывает: диапазон сохраняется как `trailing_source: RawSpan`.
+
+Основание: PUB-C-124, OBS-RS-001.
+
 ## Минимальная физическая грамматика блоков
 
 На текущем этапе в общий wire-parser допускаются только четыре подтверждённых типа:
@@ -159,6 +184,7 @@ Canonical Claim PUB-C-123 фиксирует semantic mapping для прове�
 - точное определение family marker;
 - `ContentsPreamble` с family и serialization revision;
 - отдельный `Contents0x2cHeader` с проверенным trailer offset;
+- `Contents0x2cTrailerRoot` для declared trailer range, roots `01:20` / `02:20` / `03:90` и вложенного positional directory;
 - отдельный `RawSpan` для family marker, revision и trailer pointer;
 - обязательную проверку границ trailer pointer;
 - `ContentsCursor`, который не читает за границы и умеет ограничиваться диапазоном родителя;
