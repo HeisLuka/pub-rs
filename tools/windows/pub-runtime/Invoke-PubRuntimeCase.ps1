@@ -18,6 +18,9 @@ param(
     [string]$SnapshotId = "",
 
     [Parameter(Mandatory = $false)]
+    [string]$LabEnvironmentComparison = $env:PUB_LAB_ENV_COMPARISON,
+
+    [Parameter(Mandatory = $false)]
     [string]$Operation = "",
 
     [Parameter(Mandatory = $false)]
@@ -38,6 +41,10 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
 
 Import-Module (Join-Path $PSScriptRoot "PubRuntime.psm1") -Force
+
+if ($RequirePublisher -and [string]::IsNullOrWhiteSpace($LabEnvironmentComparison)) {
+    throw "Native Publisher run требует exact LAB-ENV comparison: передайте -LabEnvironmentComparison или PUB_LAB_ENV_COMPARISON."
+}
 
 $sourceRecord = Get-PubFileRecord $SourcePub
 $runStarted = [DateTimeOffset]::Now
@@ -84,7 +91,19 @@ if ($StructuralManifest) {
     $structuralBinding = Copy-PubBoundFile -Source $StructuralManifest -Destination $manifestDestination
 }
 
+$labEnvironmentBinding = $null
+if (-not [string]::IsNullOrWhiteSpace($LabEnvironmentComparison)) {
+    $labEnvironmentDir = Join-Path $metaDir "lab-environment"
+    $labEnvironmentBinding = Bind-PubLabEnvironment -ComparisonPath $LabEnvironmentComparison -ExpectedSnapshotId $SnapshotId -DestinationDir $labEnvironmentDir
+}
+
 $environment = Get-PubEnvironmentManifest -SnapshotId $SnapshotId -RequirePublisher:$RequirePublisher -Visible:$Visible
+$runtimeEnvironmentCheck = $null
+if ($null -ne $labEnvironmentBinding) {
+    $runtimeEnvironmentCheck = Assert-PubRuntimeEnvironmentMatchesLabCapture -RuntimeManifest $environment -LabCapturePath ([string]$labEnvironmentBinding.reference_capture_bound_path)
+}
+$environment["lab_preflight_binding"] = $labEnvironmentBinding
+$environment["runtime_projection_check"] = $runtimeEnvironmentCheck
 Write-PubJson -Value $environment -Path (Join-Path $runDir "environment.json")
 
 $fixtureManifest = [ordered]@{
@@ -131,6 +150,8 @@ $runContext = [ordered]@{
     logs_dir = $logsDir
     meta_dir = $metaDir
     snapshot_id = $SnapshotId
+    lab_environment_bound = ($null -ne $labEnvironmentBinding)
+    lab_environment_fingerprint_sha256 = if ($null -eq $labEnvironmentBinding) { $null } else { $labEnvironmentBinding.stable_fingerprint_sha256 }
     publisher_required = [bool]$RequirePublisher
     visible = [bool]$Visible
 }
@@ -185,12 +206,15 @@ $runManifest = [ordered]@{
     status = $adapterResult.status
     source_sha256 = $sourceRecord.sha256
     snapshot_id = $SnapshotId
+    lab_environment_bound = ($null -ne $labEnvironmentBinding)
+    lab_environment_fingerprint_sha256 = if ($null -eq $labEnvironmentBinding) { $null } else { $labEnvironmentBinding.stable_fingerprint_sha256 }
     adapter_result = $adapterResult
     artifact_count_before_final_manifest = @($recordsBeforeFinalManifest).Count
     guardrails = @(
         "Успешный envelope-run не доказывает semantic/read/write контракт PUB.",
         "Native claim допустим только после experiment-specific анализа и evidence reconciliation.",
-        "SaveAs conversion output не считается native writer evidence другой версии Publisher."
+        "SaveAs conversion output не считается native writer evidence другой версии Publisher.",
+        "SnapshotId является операторской меткой; native Publisher run разрешён только при binding stable LAB-ENV comparison и совпадении runtime projection."
     )
 }
 Write-PubJson -Value $runManifest -Path (Join-Path $runDir "run-manifest.json")
