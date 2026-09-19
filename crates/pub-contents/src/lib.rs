@@ -33,7 +33,9 @@ pub use identity::{
 };
 pub use reference::{
     CHUNK_REFERENCE_OFFSET_ID, CHUNK_REFERENCE_PARENT_SEQ_NUM_ID, CHUNK_REFERENCE_RAW_TYPE_ID,
-    ChunkReferenceReadError, Contents0x2cChunkReference, ObservedU32Field,
+    CHUNK_REFERENCE_WIRE_EMPTY, CHUNK_REFERENCE_WIRE_OFFSET, CHUNK_REFERENCE_WIRE_PARENT_SEQ_NUM,
+    CHUNK_REFERENCE_WIRE_U16, CHUNK_REFERENCE_WIRE_U16_SERVICE, ChunkReferenceReadError,
+    Contents0x2cChunkReference, ObservedU16Field, ObservedU32Field,
     parse_confirmed_chunk_reference,
 };
 
