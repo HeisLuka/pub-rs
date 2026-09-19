@@ -150,9 +150,7 @@
       "mutation_contract": "Exact Aspose halloween-flyer.pub is a candidate source for the already-observed second alignment topology. Runtime must first verify unique Text Box 20 containing 'Children' with initial COM Alignment=2. Primary first-pass mutations are 2->1, 2->3, 2->4. Reverse 1->2 requires a separately pinned value-1 derivative.",
       "expected_result": null,
       "provenance": "Aspose public Git fixture + project PARA-ALIGN cross-fixture observation on txt-same-02/control-input.pub. Exact equality between historical control-input copy and upstream source is not assumed; runtime locator/precondition must be revalidated on this exact upstream hash.",
-      "required_tags": [
-        "PUB_ORACLE_ID=ALIGN_TARGET"
-      ],
+      "required_tags": [],
       "runtime_role": "source_for_style_alignment_2_to_1_3_4",
       "local_filename": "ALIGN-STYLE-TOPOLOGY-BASE.pub",
       "source_identity": {
@@ -163,7 +161,7 @@
         "raw_url": "https://raw.githubusercontent.com/aspose-pub/Aspose.PUB-for-.NET/beee619f9a4b7e2c8908e0fa132f4f4650b08975/Examples/Data/halloween-flyer.pub"
       },
       "locator_contract": {
-        "primary": "PUB_ORACLE_ID=ALIGN_TARGET if a separately pinned tagged derivative is used",
+        "primary": "Exact upstream source uses external_fallback; PUB_ORACLE_ID=ALIGN_TARGET is allowed only for a separately pinned tagged derivative.",
         "external_fallback": {
           "required_sha256": "f079765650af152e1ae1fbfded757f679c588ceea884b77329a240c578884c25",
           "shape_name": "Text Box 20",
