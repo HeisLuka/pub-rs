@@ -207,6 +207,7 @@ $result = [ordered]@{
     rewritten = $null
     emitted_assets = @()
     package = $null
+    operator_manifest = $null
     interpretation_guardrails = @(
         "PictureFormat state является semantic oracle, а не BStore/EscherDelay attribution.",
         "Pack & Go destructive-vs-dual-state остаётся experiment result, а не предпосылка adapter'а.",
@@ -217,6 +218,26 @@ $result = [ordered]@{
 }
 
 if ($caseId -ne "baseline") {
+    if ([string]::IsNullOrWhiteSpace($env:PUB_PACK_OPERATOR_MANIFEST)) {
+        throw "Для $caseId требуется PUB_PACK_OPERATOR_MANIFEST"
+    }
+
+    $operatorSource = (Resolve-Path -LiteralPath $env:PUB_PACK_OPERATOR_MANIFEST).Path
+    $operatorParsed = Get-Content -LiteralPath $operatorSource -Raw | ConvertFrom-Json
+    if ([string]$operatorParsed.schema -ne "pub-pack-ext-01/operator-action/v1") {
+        throw "Неожиданная schema operator manifest: $($operatorParsed.schema)"
+    }
+    if ([string]$operatorParsed.case_id -ne $caseId) {
+        throw "operator manifest case_id=$($operatorParsed.case_id) не совпадает с run case_id=$caseId"
+    }
+
+    $operatorDestination = Join-Path ([string]$context.meta_dir) "pack-operator-manifest.json"
+    $operatorBinding = Copy-PubBoundFile -Source $operatorSource -Destination $operatorDestination
+    $result.operator_manifest = [ordered]@{
+        binding = $operatorBinding
+        parsed = $operatorParsed
+    }
+
     if ([string]::IsNullOrWhiteSpace($env:PUB_PACK_OUTPUT_PUB)) {
         throw "Для $caseId требуется PUB_PACK_OUTPUT_PUB с exact rewritten publication path"
     }
