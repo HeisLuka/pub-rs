@@ -1,0 +1,153 @@
+name: Исследование носителя Office 2000 Publisher
+
+on:
+  push:
+    branches:
+      - research/office2000-media-census
+
+permissions:
+  contents: read
+
+jobs:
+  census:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Установить инструменты
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq p7zip-full
+          python -m pip install --disable-pip-version-check olefile
+
+      - name: Скачать Disc 2 только во временный runner
+        run: |
+          curl -L --fail --retry 3 --retry-delay 2 \
+            -A 'pub-rs-corpus-research/1.0 (+https://github.com/HeisLuka/pub-rs)' \
+            -o office2000-disc2.iso \
+            'https://archive.org/download/office-2000-professional/Office%202000%20Professional%20%5BDisc%202%5D.iso'
+          sha256sum office2000-disc2.iso | tee iso-sha256.txt
+          stat -c 'size=%s' office2000-disc2.iso | tee -a iso-sha256.txt
+
+      - name: Снять ISO/CAB census и извлечь только PUB во временную директорию
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p iso extracted_pub cab_lists
+          7z l -slt office2000-disc2.iso > iso-list.txt
+          7z x -y office2000-disc2.iso -oiso >/dev/null
+
+          {
+            echo '=== ISO names containing pub/publisher/template/wizard ==='
+            find iso -type f | sed 's#^iso/##' | grep -Eai '(^|/)(pub|publisher)|template|wizard|\.pub$' || true
+            echo
+            echo '=== CAB files ==='
+            find iso -type f -iname '*.cab' | sed 's#^iso/##' | sort
+          } > publisher-candidates.txt
+
+          direct_count=0
+          while IFS= read -r -d '' f; do
+            direct_count=$((direct_count+1))
+            cp "$f" "extracted_pub/direct_${direct_count}_$(basename "$f")"
+          done < <(find iso -type f -iname '*.pub' -print0)
+
+          cab_index=0
+          while IFS= read -r -d '' cab; do
+            cab_index=$((cab_index+1))
+            listing="cab_lists/cab_${cab_index}.txt"
+            7z l -slt "$cab" > "$listing" || continue
+            if grep -Eqi 'Path = .*\.pub$' "$listing"; then
+              echo "CAB_WITH_PUB=$cab" >> publisher-candidates.txt
+              grep -Ei 'Path = .*\.pub$|Size = |CRC = ' "$listing" >> publisher-candidates.txt || true
+              out="cab_extract_${cab_index}"
+              mkdir -p "$out"
+              7z x -y "$cab" -o"$out" '*.pub' -r >/dev/null || true
+              while IFS= read -r -d '' f; do
+                cp "$f" "extracted_pub/cab${cab_index}_$(basename "$f")"
+              done < <(find "$out" -type f -iname '*.pub' -print0)
+            fi
+          done < <(find iso -type f -iname '*.cab' -print0)
+
+          echo "DIRECT_PUB_COUNT=$direct_count" >> publisher-candidates.txt
+          echo "TOTAL_EXTRACTED_PUB=$(find extracted_pub -type f -iname '*.pub' | wc -l)" >> publisher-candidates.txt
+
+      - name: Fingerprint найденные Microsoft-origin PUB
+        shell: python
+        run: |
+          import glob
+          import hashlib
+          import io
+          import json
+          import os
+          import struct
+
+          import olefile
+
+          def u16(data, off):
+              return struct.unpack_from("<H", data, off)[0] if off + 2 <= len(data) else None
+
+          def u32(data, off):
+              return struct.unpack_from("<I", data, off)[0] if off + 4 <= len(data) else None
+
+          version_names = {125:"Publisher 3",136:"Publisher 4",616:"Publisher 5",717:"Publisher 6",1000:"Publisher 10"}
+
+          report=[]
+          for path in sorted(glob.glob("extracted_pub/*.pub")):
+              raw=open(path,"rb").read()
+              item={
+                  "name":os.path.basename(path),
+                  "size":len(raw),
+                  "sha256":hashlib.sha256(raw).hexdigest(),
+                  "prefix32":raw[:32].hex(),
+                  "cfb_magic":raw.startswith(bytes.fromhex("d0cf11e0a1b11ae1")),
+                  "legacy_pub1_magic":raw.startswith(bytes.fromhex("e7ac2c00")),
+              }
+              if olefile.isOleFile(io.BytesIO(raw)):
+                  ole=olefile.OleFileIO(io.BytesIO(raw))
+                  item["root_clsid"]=str(getattr(ole.root,"clsid",None))
+                  paths=["/".join(p) for p in ole.listdir(streams=True,storages=True)]
+                  item["ole_paths"]=paths
+                  if ole.exists("Contents"):
+                      contents=ole.openstream("Contents").read()
+                      v0=u16(contents,4)
+                      v2=u16(contents,12)
+                      item["contents"]={
+                          "size":len(contents),
+                          "family_word":u16(contents,2),
+                          "version0":v0,
+                          "version2":v2,
+                          "resolved_old_version": v2 if v0==300 else v0,
+                          "resolved_old_version_name":version_names.get(v2 if v0==300 else v0),
+                          "revision_u16_at_0c":u16(contents,12),
+                          "trailer_ptr_16":u32(contents,0x16),
+                          "trailer_ptr_1a":u32(contents,0x1A),
+                      }
+                  try:
+                      props=ole.getproperties("\x05DocumentSummaryInformation")
+                  except Exception:
+                      props={}
+                  piddsi=props.get(23)
+                  item["piddsi_version"]=piddsi
+                  item["office_major"]=(piddsi>>16) if isinstance(piddsi,int) else None
+                  item["has_quill"]=any(p=="Quill" or p.startswith("Quill/") for p in paths)
+                  item["has_escher"]=any(p.endswith("EscherStm") for p in paths)
+                  ole.close()
+              report.append(item)
+              print(json.dumps(item,ensure_ascii=False,sort_keys=True))
+
+          with open("office2000-pub-report.json","w",encoding="utf-8") as f:
+              json.dump(report,f,ensure_ascii=False,indent=2)
+
+          print("MICROSOFT_ORIGIN_PUB_COUNT",len(report))
+
+      - name: Сохранить только метаданные
+        uses: actions/upload-artifact@v4
+        with:
+          name: office2000-media-census
+          path: |
+            iso-sha256.txt
+            publisher-candidates.txt
+            office2000-pub-report.json
+          if-no-files-found: error
+          retention-days: 7
