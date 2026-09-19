@@ -1,0 +1,117 @@
+name: Research — Batch 01 integration smoke
+
+on:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  integration-smoke:
+    runs-on: windows-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Забрать integration tree
+        uses: actions/checkout@v5
+
+      - name: Проверить PowerShell 5.1 encoding и syntax
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $legacy = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+          if (-not (Test-Path -LiteralPath $legacy -PathType Leaf)) {
+            throw "Windows PowerShell 5.1 не найден: $legacy"
+          }
+
+          $check = Join-Path $env:RUNNER_TEMP "check-powershell51.ps1"
+          @'
+          $ErrorActionPreference = "Stop"
+          $root = Resolve-Path ".\tools\windows\pub-runtime"
+          $files = @(Get-ChildItem -LiteralPath $root -Recurse -File | Where-Object {
+              $_.Extension -eq ".ps1" -or $_.Extension -eq ".psm1"
+          })
+          if ($files.Count -eq 0) {
+              throw "Runtime PowerShell files не найдены."
+          }
+
+          $failed = $false
+          foreach ($file in $files) {
+              $bytes = [IO.File]::ReadAllBytes($file.FullName)
+              $hasBom = $bytes.Length -ge 3 -and $bytes[0] -eq 0xEF -and $bytes[1] -eq 0xBB -and $bytes[2] -eq 0xBF
+              if (-not $hasBom) {
+                  Write-Error "Нет UTF-8 BOM: $($file.FullName)"
+                  $failed = $true
+                  continue
+              }
+
+              $tokens = $null
+              $errors = $null
+              [System.Management.Automation.Language.Parser]::ParseFile(
+                  $file.FullName,
+                  [ref]$tokens,
+                  [ref]$errors
+              ) | Out-Null
+              if ($errors.Count -gt 0) {
+                  foreach ($error in $errors) {
+                      Write-Error "$($file.FullName): $($error.Message)"
+                  }
+                  $failed = $true
+              }
+          }
+
+          if ($failed) {
+              exit 2
+          }
+
+          Write-Host "POWERSHELL51_FILES=$($files.Count)"
+          Write-Host "POWERSHELL51_PARSE=OK"
+          '@ | Set-Content -LiteralPath $check -Encoding UTF8
+
+          & $legacy -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $check
+          if ($LASTEXITCODE -ne 0) {
+            throw "PowerShell 5.1 syntax/encoding audit failed: $LASTEXITCODE"
+          }
+
+      - name: Проверить Batch 01 plan и наличие adapters
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $legacy = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+          & $legacy -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\fixtures\batch-01\Test-Batch01Plan.ps1" -CheckAdapters
+          if ($LASTEXITCODE -ne 0) {
+            throw "Batch 01 structural plan/adapters check failed: $LASTEXITCODE"
+          }
+
+      - name: Проверить exact локальные Parker fixtures
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = "Stop"
+          $expected = @{
+            "VAL-PARKER-BASELINE.pub" = "26b71f6686a5a9c25b576d97bee88c00e983dba04bd6e98ff305b6bc3f95b935"
+            "VAL-CRVAL01-INTERNAL-CR-TO-R.pub" = "d236eb6e1e2be0becc468415f4024afa5c6563fcf90e86a27b607bd4b8a5ac7f"
+            "VAL-CRVAL02-TERMINAL-CR-TO-R.pub" = "82635406d3e8f55d90196b573cc55cd27f43eb949bc23caf76edbde2bcef0780"
+            "VAL-CRVAL03-TERMINAL-CR-TO-LF.pub" = "2a467d60364807bfb3f2837726b26af6a632e3174825dd961e8bf80f64971d7b"
+            "VAL-CRVAL04-FDPP-PLUS2.pub" = "76bfd4ec05127ef6cb424d789eaab67a1939e95cf4f525120f999b8a960d501c"
+          }
+          foreach ($name in $expected.Keys) {
+            $path = Join-Path ".\fixtures\batch-01" $name
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) {
+              throw "Отсутствует pinned fixture: $name"
+            }
+            $item = Get-Item -LiteralPath $path
+            if ($item.Length -ne 65536) {
+              throw "$name: size=$($item.Length), expected=65536"
+            }
+            $actual = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -ne $expected[$name]) {
+              throw "$name: SHA-256 mismatch: $actual"
+            }
+          }
+
+          if (Test-Path -LiteralPath ".\fixtures\batch-01\VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1.pub") {
+            throw "CRVAL05 не должен присутствовать как pinned evidence до восстановления exact 8e93c506… bytes."
+          }
+
+          Write-Host "PINNED_PARKER_FIXTURES=5"
+          Write-Host "CRVAL05_STATE=bytes_pending"
