@@ -79,22 +79,32 @@ try {
         }
     }
 
-    $runnerArgs = @{
-        ExperimentId = "PACK-EXT-01"
-        CaseId = $CaseId
-        SourcePub = $SourcePub
-        AdapterScript = $adapter
-        OutputRoot = $OutputRoot
-        SnapshotId = $SnapshotId
-        Operation = $operation
-        ExternalAssets = @($SentinelAsset)
-        RequirePublisher = $true
+    $hostPath = Join-Path $PSHOME "powershell.exe"
+    if (-not (Test-Path -LiteralPath $hostPath -PathType Leaf)) {
+        $hostPath = Join-Path $PSHOME "pwsh.exe"
+    }
+    if (-not (Test-Path -LiteralPath $hostPath -PathType Leaf)) {
+        throw "Не найден PowerShell executable рядом с PSHOME=$PSHOME"
     }
 
-    & $runner @runnerArgs
+    $arguments = @(
+        "-NoProfile",
+        "-ExecutionPolicy", "Bypass",
+        "-File", ('"' + $runner + '"'),
+        "-ExperimentId", "PACK-EXT-01",
+        "-CaseId", $CaseId,
+        "-SourcePub", ('"' + $SourcePub + '"'),
+        "-AdapterScript", ('"' + $adapter + '"'),
+        "-OutputRoot", ('"' + $OutputRoot + '"'),
+        "-SnapshotId", $SnapshotId,
+        "-Operation", ('"' + $operation + '"'),
+        "-ExternalAssets", ('"' + $SentinelAsset + '"'),
+        "-RequirePublisher"
+    )
 
-    if ($LASTEXITCODE -ne 0) {
-        exit $LASTEXITCODE
+    $runnerProcess = Start-Process -FilePath $hostPath -ArgumentList $arguments -PassThru -Wait
+    if ($runnerProcess.ExitCode -ne 0) {
+        exit $runnerProcess.ExitCode
     }
 }
 finally {
