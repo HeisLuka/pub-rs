@@ -8,9 +8,9 @@ mod document;
 mod reference;
 
 pub use block::{
-    BLOCK_TYPE_CONTAINER_88, BLOCK_TYPE_CONTAINER_90, BLOCK_TYPE_CONTAINER_A0,
-    BLOCK_TYPE_DUMMY, BLOCK_TYPE_HANDLE_U32, BLOCK_TYPE_U32, BlockReadError, RawContentsBlock,
-    RawContentsBlockBody, parse_confirmed_block,
+    BLOCK_TYPE_CONTAINER_88, BLOCK_TYPE_CONTAINER_90, BLOCK_TYPE_CONTAINER_A0, BLOCK_TYPE_DUMMY,
+    BLOCK_TYPE_HANDLE_U32, BLOCK_TYPE_U32, BlockReadError, RawContentsBlock, RawContentsBlockBody,
+    parse_confirmed_block,
 };
 pub use directory::{
     Contents0x2cDirectory, Contents0x2cDirectorySlot, DirectoryReadError,
