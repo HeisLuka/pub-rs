@@ -21,6 +21,9 @@ param(
     [string]$Operation = "",
 
     [Parameter(Mandatory = $false)]
+    [string]$SourceFixtureId = "",
+
+    [Parameter(Mandatory = $false)]
     [string[]]$ExternalAssets = @(),
 
     [Parameter(Mandatory = $false)]
@@ -85,8 +88,9 @@ $environment = Get-PubEnvironmentManifest -SnapshotId $SnapshotId -RequirePublis
 Write-PubJson -Value $environment -Path (Join-Path $runDir "environment.json")
 
 $fixtureManifest = [ordered]@{
-    schema = "pub-runtime/fixture-manifest/v1"
-    fixture_id = "$ExperimentId::$CaseId"
+    schema = "pub-runtime/fixture-manifest/v2"
+    source_fixture_id = if ([string]::IsNullOrWhiteSpace($SourceFixtureId)) { $null } else { $SourceFixtureId }
+    run_fixture_id = "$ExperimentId::$CaseId"
     bound_at = [DateTimeOffset]::Now.ToString("o")
     source = $sourceBinding
     external_assets = $assetBindings
@@ -116,6 +120,7 @@ $runContext = [ordered]@{
     schema = "pub-runtime/context/v1"
     experiment_id = $ExperimentId
     case_id = $CaseId
+    source_fixture_id = if ([string]::IsNullOrWhiteSpace($SourceFixtureId)) { $null } else { $SourceFixtureId }
     run_id = $runId
     run_dir = $runDir
     source_pub = $boundSourcePath
@@ -173,6 +178,7 @@ $runManifest = [ordered]@{
     schema = "pub-runtime/run-manifest/v1"
     experiment_id = $ExperimentId
     case_id = $CaseId
+    source_fixture_id = if ([string]::IsNullOrWhiteSpace($SourceFixtureId)) { $null } else { $SourceFixtureId }
     run_id = $runId
     started_at = $runStarted.ToString("o")
     finished_at = [DateTimeOffset]::Now.ToString("o")
