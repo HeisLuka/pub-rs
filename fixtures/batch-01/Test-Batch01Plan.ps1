@@ -8,6 +8,9 @@ param(
     [Parameter(Mandatory = $false)]
     [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path,
 
+    [Parameter(Mandatory = $false)]
+    [string]$FixtureRoot = "",
+
     [switch]$RequireExecutable,
 
     [switch]$CheckAdapters
@@ -79,8 +82,45 @@ function Check-FixtureReference {
 
     $fixture = $fixtures[$FixtureId]
     $availability = [string]$fixture.availability
+
     if ($availability -eq "pinned") {
         Add-PlanRow "fixture" $CaseKey "PINNED" $FixtureId
+        return
+    }
+
+    if ($availability -eq "external_pinned") {
+        if ([string]::IsNullOrWhiteSpace($FixtureRoot)) {
+            Add-PlanRow "fixture" $CaseKey "BLOCKED" "$FixtureId availability=external_pinned; FixtureRoot не передан для local verification"
+            $script:executionBlocked = $true
+            return
+        }
+
+        $localFilename = [string](Get-OptionalProperty -Object $fixture -Name "local_filename")
+        if ([string]::IsNullOrWhiteSpace($localFilename)) {
+            Add-PlanRow "fixture" $CaseKey "SCHEMA_ERROR" "$FixtureId external_pinned без local_filename"
+            $script:schemaError = $true
+            return
+        }
+
+        $localPath = Join-Path ([System.IO.Path]::GetFullPath($FixtureRoot)) $localFilename
+        if (-not (Test-Path -LiteralPath $localPath -PathType Leaf)) {
+            Add-PlanRow "fixture" $CaseKey "BLOCKED" "$FixtureId local bytes отсутствуют: $localPath"
+            $script:executionBlocked = $true
+            return
+        }
+
+        $actualHash = (Get-FileHash -LiteralPath $localPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        $expectedHash = ([string]$fixture.sha256).ToLowerInvariant()
+        $actualSize = [int64](Get-Item -LiteralPath $localPath).Length
+        $expectedSize = [int64]$fixture.size
+
+        if ($actualHash -ne $expectedHash -or $actualSize -ne $expectedSize) {
+            Add-PlanRow "fixture" $CaseKey "BLOCKED" "$FixtureId local identity mismatch"
+            $script:executionBlocked = $true
+            return
+        }
+
+        Add-PlanRow "fixture" $CaseKey "PINNED_EXTERNAL" "$FixtureId local size/SHA-256 verified"
         return
     }
 
@@ -93,6 +133,17 @@ foreach ($wave in $plan.waves) {
     if (-not ($plan.snapshots.PSObject.Properties.Name -contains $snapshotName)) {
         Add-PlanRow "wave" ([string]$wave.wave_id) "SCHEMA_ERROR" "Неизвестный snapshot=$snapshotName"
         $schemaError = $true
+    }
+    else {
+        $snapshotDefinition = $plan.snapshots.PSObject.Properties[$snapshotName].Value
+        $requiredLabel = [string](Get-OptionalProperty -Object $snapshotDefinition -Name "required_label")
+        if ([string]::IsNullOrWhiteSpace($requiredLabel)) {
+            Add-PlanRow "wave" ([string]$wave.wave_id) "SCHEMA_ERROR" "snapshot=$snapshotName без required_label"
+            $schemaError = $true
+        }
+        else {
+            Add-PlanRow "wave" ([string]$wave.wave_id) "DEFINED" "$snapshotName -> $requiredLabel"
+        }
     }
 
     foreach ($group in $wave.order) {
