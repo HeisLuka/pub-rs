@@ -90,9 +90,7 @@ mod tests {
 
     #[test]
     fn decodes_observed_oid_pair_without_assigning_allocator_semantics() {
-        let bytes = [
-            0x0D, 0x28, 0x02, 0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00,
-        ];
+        let bytes = [0x0D, 0x28, 0x02, 0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00];
         let payload = parse_confirmed_oid_identity_payload(parse_block(&bytes))
             .expect("type0x28 должен декодироваться как Oid pair");
 
@@ -105,9 +103,7 @@ mod tests {
 
     #[test]
     fn keeps_field_id_class_local() {
-        let bytes = [
-            0x06, 0x28, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00,
-        ];
+        let bytes = [0x06, 0x28, 0x01, 0x00, 0x00, 0x00, 0x01, 0x00, 0x00, 0x00];
         let payload = parse_confirmed_oid_identity_payload(parse_block(&bytes))
             .expect("тот же physical Oid wire не должен зависеть от class-local field id");
 

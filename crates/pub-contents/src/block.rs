@@ -240,8 +240,8 @@ mod tests {
             &[0x0D, 0x28, 0x02, 0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00],
         );
 
-        let block = parse_confirmed_block(&mut cursor)
-            .expect("8-byte identity block должен читаться");
+        let block =
+            parse_confirmed_block(&mut cursor).expect("8-byte identity block должен читаться");
 
         assert_eq!(block.id, 0x0D);
         assert_eq!(block.block_type, BLOCK_TYPE_FIXED_8);

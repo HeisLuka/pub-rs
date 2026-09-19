@@ -28,7 +28,9 @@ pub use document_write::{
     DocumentSequenceHandlePatch, DocumentSequencePermutationError, DocumentSequencePermutationPlan,
     apply_confirmed_document_sequence_permutation, plan_confirmed_document_sequence_permutation,
 };
-pub use identity::{OidIdentityPayload, OidIdentityReadError, parse_confirmed_oid_identity_payload};
+pub use identity::{
+    OidIdentityPayload, OidIdentityReadError, parse_confirmed_oid_identity_payload,
+};
 pub use reference::{
     CHUNK_REFERENCE_OFFSET_ID, CHUNK_REFERENCE_PARENT_SEQ_NUM_ID, CHUNK_REFERENCE_RAW_TYPE_ID,
     ChunkReferenceReadError, Contents0x2cChunkReference, ObservedU32Field,
