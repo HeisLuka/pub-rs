@@ -201,8 +201,7 @@ mod tests {
             &[0x00, 0x70, 0x27, 0x01, 0x00, 0x00],
         );
 
-        let block =
-            parse_confirmed_block(&mut cursor).expect("handle-u32 блок должен читаться");
+        let block = parse_confirmed_block(&mut cursor).expect("handle-u32 блок должен читаться");
 
         assert_eq!(block.id, 0x00);
         assert_eq!(block.block_type, BLOCK_TYPE_HANDLE_U32);
@@ -261,8 +260,7 @@ mod tests {
     #[test]
     fn parses_a0_container_with_generic_length_rule() {
         let bytes = [
-            0x02, 0xA0, 0x0A, 0x00, 0x00, 0x00,
-            0x00, 0x70, 0x07, 0x01, 0x00, 0x00,
+            0x02, 0xA0, 0x0A, 0x00, 0x00, 0x00, 0x00, 0x70, 0x07, 0x01, 0x00, 0x00,
         ];
         let mut cursor = ContentsCursor::new(StreamPath("/Contents".into()), &bytes);
 
