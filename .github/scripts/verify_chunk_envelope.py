@@ -252,6 +252,10 @@ def parse_general_field(data, cursor, limit):
         payload_len = 0
     elif wire_type in FIXED:
         payload_len = FIXED[wire_type]
+    else:
+        payload_len = None
+
+    if payload_len is not None:
         payload_start = cursor + 2
         end = payload_start + payload_len
         if end > limit:
