@@ -173,7 +173,7 @@ try {
             Stop-Process -Id $workerProcess.Id -Force -ErrorAction SilentlyContinue
         }
         catch {
-            # Worker kill — best effort.
+            # Завершение worker-процесса выполняется по возможности.
         }
 
         $newPublisherPids = @(
