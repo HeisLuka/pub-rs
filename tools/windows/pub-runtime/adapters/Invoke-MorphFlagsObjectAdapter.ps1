@@ -244,11 +244,16 @@ function Get-MorphSnapshot {
 
     return [ordered]@{
         phase = $Phase
+        locator = [string]$Target.locator
+        traversal_path = [string]$Target.traversal_path
+        object_tracking_oh = $Target.object_tracking_oh
         page_index = [int]$Target.page_index
         page_id = Get-PubSafeValue { [int]$page.PageID } "Page.PageID"
         shape_index = [int]$Target.shape_index
         shape_id = Get-PubSafeValue { [int]$shape.ID } "Shape.ID"
         shape_name = Get-PubSafeValue { [string]$shape.Name } "Shape.Name"
+        wizard_tag = Get-PubSafeValue { [int]$shape.WizardTag } "Shape.WizardTag"
+        wizard_tag_instance = Get-PubSafeValue { [int]$shape.WizardTagInstance } "Shape.WizardTagInstance"
         oracle_tag = Get-OracleTagValue -Shape $shape -TagName "PUB_ORACLE_ID"
         baseline_left_tag = Get-OracleTagValue -Shape $shape -TagName "MORPH_BASE_LEFT"
         left = Get-PubSafeValue { [double]$shape.Left } "Shape.Left"
@@ -264,6 +269,8 @@ function Get-MorphSnapshot {
 
 $context = Get-Content -LiteralPath $RunContextPath -Raw | ConvertFrom-Json
 $caseId = [string]$context.case_id
+$sourceRecord = Get-PubFileRecord ([string]$context.source_pub)
+$descriptor = Read-MorphTargetDescriptor -SourceSha256 $sourceRecord.sha256 -MetaDir ([string]$context.meta_dir)
 
 $operation = $null
 $parameter = $null
@@ -299,8 +306,21 @@ $result = [ordered]@{
     schema = "pub-morph-flags-01/object-adapter/v1"
     experiment_id = [string]$context.experiment_id
     case_id = $caseId
+    source_sha256 = $sourceRecord.sha256
     operation = $operation
     parameter = $parameter
+    target_descriptor = if ($null -eq $descriptor) {
+        $null
+    }
+    else {
+        [ordered]@{
+            sha256 = $descriptor.binding.bound_copy.sha256
+            wizard_tag = $descriptor.wizard_tag
+            wizard_tag_instance = $descriptor.wizard_tag_instance
+            object_tracking_oh = $descriptor.object_tracking_oh
+            crosswalk_state = [string]$descriptor.parsed.crosswalk.state
+        }
+    }
     publisher = $null
     before = $null
     mutation = [ordered]@{
@@ -320,9 +340,11 @@ $result = [ordered]@{
     reopen = $null
     interpretation_guardrails = @(
         "Adapter меняет ровно одно COM property на object-level arm.",
+        "WizardTag/Instance, Shape.ID, Contents oh/seqNum, Escher spid и ObjectTracking.OhTrack остаются разными пространствами идентичности.",
+        "Для внешнего help.pub mutation запрещена без descriptor со crosswalk.state=confirmed.",
         "OplPo/OplOt/OplLastFmt attribution выполняется только offline decoder'ом.",
-        "Restore arm требует отдельный moved source и меняет только Shape.Left.",
-        "Scenario/design switch этим adapter'ом не автоматизируется."
+        "Restore arm требует отдельно pinned moved source и меняет только Shape.Left.",
+        "Scenario/design switch выполняется отдельным adapter'ом."
     )
 }
 
@@ -338,7 +360,7 @@ try {
     }
 
     $document = $application.Open([string]$context.source_pub, $false, $false)
-    $target = Find-MorphTarget -Document $document
+    $target = Find-MorphTarget -Document $document -SourceSha256 $sourceRecord.sha256 -Descriptor $descriptor
     $result.before = Get-MorphSnapshot -Target $target -Phase "before"
     $shape = $target.shape
 
@@ -370,18 +392,29 @@ try {
             }
 
             "restore-left" {
+                $baselineLeft = $null
                 $baselineText = Get-OracleTagValue -Shape $shape -TagName "MORPH_BASE_LEFT"
-                if ([string]::IsNullOrWhiteSpace($baselineText)) {
-                    throw "restore-left source обязан содержать MORPH_BASE_LEFT"
+
+                if (-not [string]::IsNullOrWhiteSpace($baselineText)) {
+                    $baselineLeft = [double]::Parse($baselineText, [System.Globalization.CultureInfo]::InvariantCulture)
+                }
+                elseif ($null -ne $descriptor) {
+                    $baselineProperty = $descriptor.parsed.PSObject.Properties["baseline_left"]
+                    if ($null -ne $baselineProperty) {
+                        $baselineLeft = [double]$baselineProperty.Value
+                    }
                 }
 
-                $baselineLeft = [double]::Parse($baselineText, [System.Globalization.CultureInfo]::InvariantCulture)
-                if ([math]::Abs(([double]$shape.Left) - $baselineLeft) -lt 0.000001) {
+                if ($null -eq $baselineLeft) {
+                    throw "restore-left source требует MORPH_BASE_LEFT либо baseline_left в подтверждённом descriptor"
+                }
+
+                if ([math]::Abs(([double]$shape.Left) - [double]$baselineLeft) -lt 0.000001) {
                     throw "restore-left source уже находится на baseline Left"
                 }
 
-                $shape.Left = $baselineLeft
-                $result.parameter = $baselineLeft
+                $shape.Left = [double]$baselineLeft
+                $result.parameter = [double]$baselineLeft
             }
         }
 
@@ -445,7 +478,7 @@ if ($result.save.state -eq "ok") {
     try {
         $reopenApplication = New-PubPublisherApplication
         $reopenDocument = $reopenApplication.Open([string]$result.save.path, $true, $false)
-        $reopenTarget = Find-MorphTarget -Document $reopenDocument
+        $reopenTarget = Find-MorphTarget -Document $reopenDocument -SourceSha256 $sourceRecord.sha256 -Descriptor $descriptor -DerivedFromVerifiedSource
         $result.reopen = Get-MorphSnapshot -Target $reopenTarget -Phase "reopen"
     }
     catch {
