@@ -105,7 +105,11 @@
       "sha256": null,
       "mutation_contract": "Один paragraph с explicit alignment property; current writer first.",
       "expected_result": null,
-      "provenance": "Paragraph alignment task / current 2019 oracle"
+      "provenance": "Paragraph alignment task / current 2019 oracle",
+      "required_tags": [
+        "PUB_ORACLE_ID=ALIGN_TARGET"
+      ],
+      "runtime_role": "source"
     },
     {
       "fixture_id": "ALIGN-STYLE-TOPOLOGY-BASE",
@@ -117,7 +121,11 @@
       "sha256": null,
       "mutation_contract": "Независимая style topology, где alignment может материализоваться через STSH/formatting path.",
       "expected_result": null,
-      "provenance": "Paragraph alignment task"
+      "provenance": "Paragraph alignment task",
+      "required_tags": [
+        "PUB_ORACLE_ID=ALIGN_TARGET"
+      ],
+      "runtime_role": "source"
     },
     {
       "fixture_id": "PACK-EMBEDDED-PNG-BASE",
@@ -151,9 +159,15 @@
       "availability": "design_only",
       "size": null,
       "sha256": null,
-      "mutation_contract": "Два text frames A+B, unlinked; text/geometry фиксированы для всей family.",
+      "mutation_contract": "Два tagged text frames A+B без link; text/geometry фиксированы. Используется как control source и как source для единственной mutation A→B.",
       "expected_result": null,
-      "provenance": "COM-ORACLE-03"
+      "provenance": "COM-ORACLE-03",
+      "required_tags": [
+        "PUB_ORACLE_ID=STORY_A",
+        "PUB_ORACLE_ID=STORY_B"
+      ],
+      "runtime_role": "source_for_unlinked_and_link",
+      "source_topology": "unlinked"
     },
     {
       "fixture_id": "STORY-LINKED-A-B",
@@ -163,9 +177,15 @@
       "availability": "design_only",
       "size": null,
       "sha256": null,
-      "mutation_contract": "Те же A+B и те же text/geometry; единственная semantic mutation — linkage A→B.",
+      "mutation_contract": "A уже связан forward link с B при тех же text/geometry; pinned source для единственной BreakForwardLink mutation.",
       "expected_result": null,
-      "provenance": "COM-ORACLE-03"
+      "provenance": "COM-ORACLE-03",
+      "required_tags": [
+        "PUB_ORACLE_ID=STORY_A",
+        "PUB_ORACLE_ID=STORY_B"
+      ],
+      "runtime_role": "source_for_break_and_expected_link_output_class",
+      "source_topology": "linked_A_to_B"
     },
     {
       "fixture_id": "STORY-LINK-BROKEN",
@@ -175,9 +195,15 @@
       "availability": "design_only",
       "size": null,
       "sha256": null,
-      "mutation_contract": "Те же A+B и text/geometry; единственная mutation — BreakForwardLink/эквивалент native action.",
+      "mutation_contract": "Не отдельный вручную созданный source. Получается из pinned STORY-LINKED-A-B одной mutation STORY_A.TextFrame.BreakForwardLink().",
       "expected_result": null,
-      "provenance": "COM-ORACLE-03"
+      "provenance": "COM-ORACLE-03",
+      "required_tags": [
+        "PUB_ORACLE_ID=STORY_A",
+        "PUB_ORACLE_ID=STORY_B"
+      ],
+      "runtime_role": "generated_output_class",
+      "source_topology": null
     }
   ]
 }
