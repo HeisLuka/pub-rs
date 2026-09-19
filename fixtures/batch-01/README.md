@@ -54,3 +54,18 @@ C:\pub-lab\batch-01\
 ## Guardrail
 
 Этот каталог — provenance layer. Он не является доказательством семантики формата, native acceptance или writer fidelity.
+
+
+## Oracle tags и story source topology
+
+Для runtime adapters pin'ятся не только bytes, но и locator contract:
+
+- alignment fixtures: `PUB_ORACLE_ID=ALIGN_TARGET`;
+- story fixtures: `PUB_ORACLE_ID=STORY_A` и `PUB_ORACLE_ID=STORY_B`.
+
+Story family использует **два** pinned source states:
+
+1. `STORY-UNLINKED-BASE` — source для unlinked control и link mutation;
+2. `STORY-LINKED-A-B` — source для break mutation.
+
+`STORY-LINK-BROKEN` — generated output class после одной `BreakForwardLink` mutation, а не третий вручную созданный source. Это уменьшает риск, что независимая ручная сборка добавит лишний binary delta.
