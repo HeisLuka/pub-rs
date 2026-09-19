@@ -145,3 +145,34 @@ publisher98
 - Значения 0/5..11 являются документированными COM enum values, но их late-Quill wire mapping остаётся experiment target.
 - `publisher2000` и `publisher98` — conversion writers текущего Publisher.
 - Старые no-Quill paragraph bytes не объединяются с этим namespace без отдельного evidence.
+
+## Independent style-topology source без tag mutation
+
+Для первого style pass используется exact upstream `halloween-flyer.pub`, а не tagged resave:
+
+- repository: `aspose-pub/Aspose.PUB-for-.NET`;
+- commit: `beee619f9a4b7e2c8908e0fa132f4f4650b08975`;
+- path: `Examples/Data/halloween-flyer.pub`;
+- size: `306176`;
+- SHA-256: `f079765650af152e1ae1fbfded757f679c588ceea884b77329a240c578884c25`.
+
+Tag fallback для этого source не нужен. Adapter разрешает специальный locator только при полном SHA выше и затем требует:
+
+- `Shape.Name = Text Box 20`;
+- text содержит `Children`;
+- baseline `ParagraphFormat.Alignment = 2`;
+- match ровно один.
+
+Это не предполагает byte equality старого `realtest/txt-same-02/control-input.pub` с upstream-файлом. Нужная semantic topology проверяется заново на exact upstream bytes.
+
+### Исправление no-op
+
+Так как baseline alignment этого target равен 2, `style--align-2--current` нельзя использовать в первом проходе: это no-op.
+
+Первый pass:
+
+- `style--align-1--current`;
+- `style--align-3--current`;
+- `style--align-4--current`.
+
+Если нужен обратный 1→2 transition, сначала output 2→1 становится отдельным pinned source. Только затем запускается один mutation arm 1→2.
