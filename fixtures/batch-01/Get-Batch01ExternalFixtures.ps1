@@ -1,13 +1,17 @@
-param(
+﻿param(
     [Parameter(Mandatory = $true)]
     [string]$FixtureRoot,
 
     [Parameter(Mandatory = $false)]
-    [string]$ManifestPath = (Join-Path $PSScriptRoot "manifest.json")
+    [string]$ManifestPath = ""
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($ManifestPath)) {
+    $ManifestPath = Join-Path $PSScriptRoot "manifest.json"
+}
 
 $manifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
 $root = [System.IO.Path]::GetFullPath($FixtureRoot)
