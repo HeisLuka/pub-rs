@@ -13,5 +13,9 @@
     "package_file": "<path recorded by operator>",
     "extracted_assets_root": "<path recorded by operator>"
   },
-  "notes": "Заполняется до capture. null означает, что значение опции не было надёжно зафиксировано."
+  "notes": "Заполняется до capture. null означает, что значение опции не было надёжно зафиксировано.",
+  "input": {
+    "source_pub_sha256": "<sha256 exact baseline PUB, lowercase hex>",
+    "sentinel_sha256": "<sha256 exact sentinel asset, lowercase hex>"
+  }
 }
