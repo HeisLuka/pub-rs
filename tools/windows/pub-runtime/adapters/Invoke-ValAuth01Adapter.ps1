@@ -263,7 +263,7 @@ finally {
     if ($null -ne $restoreKey) {
         try {
             if ($valueExistedBefore) {
-                $kind = [Microsoft.Win32.RegistryValueKind]::$valueKindBefore
+                $kind = [Microsoft.Win32.RegistryValueKind]([System.Enum]::Parse([Microsoft.Win32.RegistryValueKind], $valueKindBefore))
                 $restoreKey.SetValue($valueName, $valueBefore, $kind)
             }
             else {
