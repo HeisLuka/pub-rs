@@ -94,17 +94,33 @@
       "experiment_id": "MORPH-FLAGS-01",
       "family": "wizard-scenario",
       "role": "control",
-      "availability": "design_only",
-      "size": null,
-      "sha256": null,
-      "mutation_contract": "Wizard/scenario publication with one tagged tracked child. Fresh exact source for each object-level arm and ChangeDocument scenario arm.",
+      "availability": "external_pinned",
+      "size": 396800,
+      "sha256": "1e7f38b3ce1d0d956815992b15d361c405fc4bbdced5cdabb3c4581327cc183e",
+      "mutation_contract": "Open exact help.pub under the pinned MODERN runtime, run read-only wizard-shape discovery, pin one WizardTag+WizardTagInstance target descriptor, then launch one object-level mutation per fresh source. Do not add a custom tag by resaving the source.",
       "expected_result": null,
-      "provenance": "MORPH-FLAGS-01 Definition of Done",
-      "required_tags": [
-        "PUB_ORACLE_ID=MORPH_TARGET"
-      ],
-      "runtime_role": "source_for_format_move_resize_rotation_and_change_document",
-      "local_filename": "MORPH-WIZARD-TRACKED-BASE.pub"
+      "provenance": "OBS-HELP-REPL-01 + OBS-TOKN-MORPH-01; full SHA-256 independently recomputed from exact Git blob bytes.",
+      "required_tags": [],
+      "runtime_role": "source_for_morph_target_discovery_and_change_document",
+      "local_filename": "MORPH-WIZARD-TRACKED-BASE.pub",
+      "source_identity": {
+        "repository": "Planet-Source-Code/hartoto-flexible-phoone-book__1-69597",
+        "commit": "1400f033db5f4a57cca6d5392f551943271b7f72",
+        "path": "help.pub",
+        "git_blob_sha1": "099df5d6ee9acb301669d1e25c47bd2cbe26a953",
+        "raw_url": "https://raw.githubusercontent.com/Planet-Source-Code/hartoto-flexible-phoone-book__1-69597/1400f033db5f4a57cca6d5392f551943271b7f72/help.pub"
+      },
+      "locator_contract": {
+        "source_gate_sha256": "1e7f38b3ce1d0d956815992b15d361c405fc4bbdced5cdabb3c4581327cc183e",
+        "discovery_required": true,
+        "stable_identity": "WizardTag + WizardTagInstance",
+        "target_descriptor": "Must be produced by read-only MORPH target discovery before any object mutation."
+      },
+      "known_binary_provenance": {
+        "producer_scope": "Publisher 11 source/export pair",
+        "morph_graph": "DesignGallery Navigation Bars / Bottom Navigation Bar group has OhmocdOnGroup=302 -> MorphingContextData; ObjectTracking oh304; OplControlling oh306; NavBarIndex=2.",
+        "evidence_scope": "Exact source/public export evidence; does not yet identify one COM Shape as an ObjectTracking entry."
+      }
     },
     {
       "fixture_id": "ALIGN-EXPLICIT-PARAGRAPH-BASE",
