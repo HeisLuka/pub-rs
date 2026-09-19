@@ -4,6 +4,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 pub const BLOCK_TYPE_U32: u8 = 0x20;
+pub const BLOCK_TYPE_FIXED_8: u8 = 0x28;
 pub const BLOCK_TYPE_HANDLE_U32: u8 = 0x70;
 pub const BLOCK_TYPE_DUMMY: u8 = 0x78;
 pub const BLOCK_TYPE_CONTAINER_88: u8 = 0x88;
@@ -24,6 +25,10 @@ pub enum RawContentsBlockBody {
     Empty,
     U32 {
         value: u32,
+        value_source: RawSpan,
+    },
+    Fixed8 {
+        bytes: [u8; 8],
         value_source: RawSpan,
     },
     Container {
@@ -111,6 +116,15 @@ fn parse_confirmed_block_inner(
             let (value, value_source) = cursor.read_u32_le()?;
             RawContentsBlockBody::U32 {
                 value,
+                value_source,
+            }
+        }
+        BLOCK_TYPE_FIXED_8 => {
+            let (raw, value_source) = cursor.take(8)?;
+            let mut bytes = [0_u8; 8];
+            bytes.copy_from_slice(raw);
+            RawContentsBlockBody::Fixed8 {
+                bytes,
                 value_source,
             }
         }
@@ -217,6 +231,33 @@ mod tests {
             }
         );
         assert_eq!(cursor.position(), 6);
+    }
+
+    #[test]
+    fn parses_confirmed_fixed_8_identity_payload() {
+        let mut cursor = ContentsCursor::new(
+            StreamPath("/Contents".into()),
+            &[0x0D, 0x28, 0x02, 0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00],
+        );
+
+        let block =
+            parse_confirmed_block(&mut cursor).expect("8-byte identity block должен читаться");
+
+        assert_eq!(block.id, 0x0D);
+        assert_eq!(block.block_type, BLOCK_TYPE_FIXED_8);
+        assert_eq!(block.source.len, 10);
+        assert_eq!(
+            block.body,
+            RawContentsBlockBody::Fixed8 {
+                bytes: [0x02, 0x00, 0x00, 0x00, 0x07, 0x00, 0x00, 0x00],
+                value_source: RawSpan {
+                    stream: StreamPath("/Contents".into()),
+                    offset: 2,
+                    len: 8,
+                },
+            }
+        );
+        assert_eq!(cursor.position(), 10);
     }
 
     #[test]
