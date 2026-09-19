@@ -294,7 +294,7 @@ def parse_general_field(data, cursor, limit):
     )
 
 
-def parse_chunk_fields(contents, ref, physical_end):
+def read_chunk_envelope(contents, ref, physical_end):
     offset = ref["offset"]
     if offset + 4 > physical_end:
         raise ValueError(f"seq {ref['seq_num']}: no room for chunk length")
@@ -313,10 +313,26 @@ def parse_chunk_fields(contents, ref, physical_end):
             f"logical_end={logical_end}, physical_end={physical_end}"
         )
 
+    return {
+        "declared": declared,
+        "logical_end": logical_end,
+        "physical_end": physical_end,
+        "gap": physical_end - logical_end,
+    }
+
+
+def parse_chunk_fields(contents, ref, logical_end):
     fields = []
-    cursor = offset + 4
+    cursor = ref["offset"] + 4
     while cursor < logical_end:
-        field = parse_general_field(contents, cursor, logical_end)
+        try:
+            field = parse_general_field(contents, cursor, logical_end)
+        except ValueError as error:
+            around = contents[cursor : min(logical_end, cursor + 32)].hex(" ")
+            raise ValueError(
+                f"seq {ref['seq_num']} raw0x{ref['raw_type']:02X} "
+                f"field parse failed at {cursor}; next={around}: {error}"
+            ) from error
         fields.append(field)
         cursor = field["end"]
 
@@ -324,14 +340,7 @@ def parse_chunk_fields(contents, ref, physical_end):
         raise ValueError(
             f"seq {ref['seq_num']}: field parse ended at {cursor}, expected {logical_end}"
         )
-
-    return {
-        "declared": declared,
-        "logical_end": logical_end,
-        "physical_end": physical_end,
-        "gap": physical_end - logical_end,
-        "fields": fields,
-    }
+    return fields
 
 
 def pair(payload):
@@ -381,16 +390,21 @@ def inspect_fixture(name, url):
     page_oid_pairs = []
 
     for ref in refs:
-        parsed = parse_chunk_fields(contents, ref, next_end[ref["offset"]])
-        gaps[parsed["gap"]] += 1
-        if parsed["gap"] == 0:
+        envelope = read_chunk_envelope(contents, ref, next_end[ref["offset"]])
+        gaps[envelope["gap"]] += 1
+        if envelope["gap"] == 0:
             exact_span += 1
+
+        if ref["raw_type"] in (0x43, 0x44):
+            fields = parse_chunk_fields(contents, ref, envelope["logical_end"])
+        else:
+            fields = []
 
         if ref["raw_type"] == 0x44:
             document_fields.append(
-                [(field["id"], field["type"]) for field in parsed["fields"]]
+                [(field["id"], field["type"]) for field in fields]
             )
-            for field in parsed["fields"]:
+            for field in fields:
                 if field["id"] == 0x23:
                     document_watermarks.append(
                         (
@@ -402,9 +416,9 @@ def inspect_fixture(name, url):
 
         if ref["raw_type"] == 0x43:
             page_fields.append(
-                (ref["seq_num"], [(f["id"], f["type"]) for f in parsed["fields"]])
+                (ref["seq_num"], [(f["id"], f["type"]) for f in fields])
             )
-            for field in parsed["fields"]:
+            for field in fields:
                 if field["type"] == 0x28:
                     page_oid_fields.append((ref["seq_num"], field["id"]))
                     if field["id"] == 0x06:
