@@ -42,8 +42,21 @@ jobs:
             echo "state=missing" >> "$GITHUB_OUTPUT"
             exit 0
           fi
+
+          # Легальное промежуточное состояние: exact baseline + CRVAL01..04
+          # pinned, а CRVAL05 остаётся bytes_pending из-за provenance mismatch.
+          if [[ "$present" -eq 5 && ! -f fixtures/batch-01/VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1.pub ]]; then
+            echo "26b71f6686a5a9c25b576d97bee88c00e983dba04bd6e98ff305b6bc3f95b935  fixtures/batch-01/VAL-PARKER-BASELINE.pub" | sha256sum --check -
+            echo "d236eb6e1e2be0becc468415f4024afa5c6563fcf90e86a27b607bd4b8a5ac7f  fixtures/batch-01/VAL-CRVAL01-INTERNAL-CR-TO-R.pub" | sha256sum --check -
+            echo "82635406d3e8f55d90196b573cc55cd27f43eb949bc23caf76edbde2bcef0780  fixtures/batch-01/VAL-CRVAL02-TERMINAL-CR-TO-R.pub" | sha256sum --check -
+            echo "2a467d60364807bfb3f2837726b26af6a632e3174825dd961e8bf80f64971d7b  fixtures/batch-01/VAL-CRVAL03-TERMINAL-CR-TO-LF.pub" | sha256sum --check -
+            echo "76bfd4ec05127ef6cb424d789eaab67a1939e95cf4f525120f999b8a960d501c  fixtures/batch-01/VAL-CRVAL04-FDPP-PLUS2.pub" | sha256sum --check -
+            echo "state=verified_partial" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           if [[ "$present" -ne "${#files[@]}" ]]; then
-            echo "Обнаружено частично материализованное состояние: $present/${#files[@]}" >&2
+            echo "Обнаружено нелегальное частично материализованное состояние: $present/${#files[@]}" >&2
             exit 2
           fi
           echo "26b71f6686a5a9c25b576d97bee88c00e983dba04bd6e98ff305b6bc3f95b935  fixtures/batch-01/VAL-PARKER-BASELINE.pub" | sha256sum --check -
