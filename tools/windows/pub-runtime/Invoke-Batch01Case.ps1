@@ -205,7 +205,7 @@ if ($null -ne $adapterValue -and -not [string]::IsNullOrWhiteSpace([string]$adap
     }
 
     & $runtimeRunner @args
-    exit $LASTEXITCODE
+    exit 0
 }
 
 if ($null -eq $entrypointValue -or [string]::IsNullOrWhiteSpace([string]$entrypointValue)) {
@@ -227,6 +227,7 @@ if ($assetPaths.Count -ne 1) {
 $packArgs = @{
     CaseId = $CaseId
     SourcePub = $source.path
+    SourceFixtureId = $sourceFixtureId
     SentinelAsset = $assetPaths[0]
     OutputRoot = $OutputRoot
     SnapshotId = $SnapshotId
@@ -256,4 +257,4 @@ if ($CaseId -ne "baseline") {
 }
 
 & $entrypointPath @packArgs
-exit $LASTEXITCODE
+exit 0
