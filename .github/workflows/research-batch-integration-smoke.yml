@@ -104,6 +104,7 @@ jobs:
 
           Write-Host "LAB_ENV_NO_PUBLISHER_EXIT=$code"
           Write-Host "LAB_ENV_FAIL_CLOSED=OK"
+          exit 0
 
       - name: Проверить exact локальные Parker fixtures
         shell: pwsh
