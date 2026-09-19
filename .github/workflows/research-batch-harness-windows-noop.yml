@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - research/batch-harness-01
+  pull_request:
 
 permissions:
   contents: read
