@@ -39,7 +39,10 @@ function Find-AlignmentTarget {
         [Parameter(Mandatory = $true)]
         [string]$Family,
         [Parameter(Mandatory = $true)]
-        [string]$SourceSha256
+        [string]$SourceSha256,
+        [Parameter(Mandatory = $true)]
+        [int]$RequiredAlignment,
+        [switch]$DerivedFromVerifiedHalloween
     )
 
     $taggedMatches = @()
@@ -72,8 +75,12 @@ function Find-AlignmentTarget {
     }
 
     $knownHalloweenSha256 = "f079765650af152e1ae1fbfded757f679c588ceea884b77329a240c578884c25"
-    if ($SourceSha256.ToLowerInvariant() -ne $knownHalloweenSha256) {
-        throw "Style fallback разрешён только для exact halloween-flyer.pub SHA-256=$knownHalloweenSha256; получен $SourceSha256"
+    if (-not $DerivedFromVerifiedHalloween -and $SourceSha256.ToLowerInvariant() -ne $knownHalloweenSha256) {
+        throw "Style source fallback разрешён только для exact halloween-flyer.pub SHA-256=$knownHalloweenSha256; получен $SourceSha256"
+    }
+
+    if ($DerivedFromVerifiedHalloween -and $SourceSha256.ToLowerInvariant() -ne $knownHalloweenSha256) {
+        throw "Derived Halloween locator требует, чтобы parent run был привязан к exact upstream SHA-256=$knownHalloweenSha256"
     }
 
     $fallbackMatches = @()
@@ -105,8 +112,8 @@ function Find-AlignmentTarget {
                 }
 
                 $alignment = [int]$shape.TextFrame.TextRange.ParagraphFormat.Alignment
-                if ($alignment -ne 2) {
-                    throw "Known Halloween target найден, но initial Alignment=$alignment вместо 2"
+                if ($alignment -ne $RequiredAlignment) {
+                    throw "Known Halloween target найден, но Alignment=$alignment вместо required=$RequiredAlignment"
                 }
 
                 $fallbackMatches += [ordered]@{
@@ -114,7 +121,12 @@ function Find-AlignmentTarget {
                     shape_index = $shapeIndex
                     page = $page
                     shape = $shape
-                    locator = "known_halloween_sha_name_text_alignment"
+                    locator = if ($DerivedFromVerifiedHalloween) {
+                        "derived_halloween_lineage_name_text_alignment"
+                    }
+                    else {
+                        "known_halloween_sha_name_text_alignment"
+                    }
                 }
             }
             catch {
@@ -126,7 +138,7 @@ function Find-AlignmentTarget {
     }
 
     if ($fallbackMatches.Count -ne 1) {
-        throw "Exact Halloween fallback требует ровно один Text Box 20 с needle Children и initial Alignment=2; найдено: $($fallbackMatches.Count)"
+        throw "Halloween locator требует ровно один Text Box 20 с needle Children и required Alignment=$RequiredAlignment; найдено: $($fallbackMatches.Count)"
     }
 
     return $fallbackMatches[0]
@@ -233,7 +245,8 @@ try {
 
     # Для semantic mutation публикация открывается не read-only; AddToRecentFiles отключён.
     $document = $application.Open([string]$context.source_pub, $false, $false)
-    $target = Find-AlignmentTarget -Document $document -Family $family -SourceSha256 $sourceRecord.sha256
+    $requiredSourceAlignment = if ($family -eq "style") { 2 } else { $alignmentValue }
+    $target = Find-AlignmentTarget -Document $document -Family $family -SourceSha256 $sourceRecord.sha256 -RequiredAlignment $requiredSourceAlignment
     $result.before = Get-AlignmentSnapshot -Target $target -Phase "before"
 
     try {
@@ -298,7 +311,7 @@ if ($result.save.state -eq "ok") {
     try {
         $reopenApplication = New-PubPublisherApplication
         $reopenDocument = $reopenApplication.Open([string]$result.save.path, $true, $false)
-        $reopenTarget = Find-AlignmentTarget -Document $reopenDocument -Family $family -SourceSha256 $sourceRecord.sha256
+        $reopenTarget = Find-AlignmentTarget -Document $reopenDocument -Family $family -SourceSha256 $sourceRecord.sha256 -RequiredAlignment $alignmentValue -DerivedFromVerifiedHalloween:($family -eq "style")
         $result.reopen = Get-AlignmentSnapshot -Target $reopenTarget -Phase "reopen"
     }
     catch {
