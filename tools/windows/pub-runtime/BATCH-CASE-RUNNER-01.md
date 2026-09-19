@@ -18,7 +18,7 @@ Runner не выбирает следующий experiment и не запуск�
 powershell -ExecutionPolicy Bypass -File .\tools\windows\pub-runtime\Invoke-Batch01Case.ps1 `
   -ExperimentId "COM-ORACLE-03" `
   -CaseId "link--current" `
-  -SnapshotId MODERN `
+  -SnapshotId MODERN-2019-12527 `
   -FixtureRoot C:\pub-lab\batch-01
 ```
 
@@ -27,7 +27,7 @@ powershell -ExecutionPolicy Bypass -File .\tools\windows\pub-runtime\Invoke-Batc
 До Publisher runtime проверяются:
 
 - exact experiment/case встречается в run-plan ровно один раз;
-- snapshot case совпадает с явно переданным snapshot label;
+- logical wave snapshot key разрешается через `snapshots.<key>.required_label`, и именно этот concrete label должен совпасть с `-SnapshotId`;
 - `needs_*` / `after_*` state не запускается;
 - source fixture существует в canonical manifest;
 - availability source — `pinned` или `external_pinned`;
