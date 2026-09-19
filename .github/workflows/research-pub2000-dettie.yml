@@ -1,0 +1,106 @@
+name: Differential Publisher 2000 Dettie
+
+on:
+  push:
+    branches:
+      - research/public-corpus-acquisition-2026-09-19
+
+permissions:
+  contents: read
+
+jobs:
+  diff:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Установить OLE-ридер
+        run: python -m pip install --disable-pip-version-check olefile
+      - name: Снять точный diff пары
+        shell: python
+        run: |
+          import difflib
+          import hashlib
+          import io
+          import json
+          import urllib.request
+
+          import olefile
+
+          urls = {
+              "color": "https://www.bookcrossing.nl/down/labelsdettie.kl.pub",
+              "bw": "https://www.bookcrossing.nl/down/labelsdettie.zw_w.pub",
+          }
+
+          payloads = {}
+          for key, url in urls.items():
+              req = urllib.request.Request(
+                  url,
+                  headers={"User-Agent": "pub-rs-corpus-research/1.0 (+https://github.com/HeisLuka/pub-rs)"},
+              )
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  payloads[key] = r.read()
+
+          def read_stream(raw, path):
+              ole = olefile.OleFileIO(io.BytesIO(raw))
+              data = ole.openstream(path.split("/")).read()
+              ole.close()
+              return data
+
+          contents_a = read_stream(payloads["color"], "Contents")
+          contents_b = read_stream(payloads["bw"], "Contents")
+          content_diffs = []
+          for i, (a, b) in enumerate(zip(contents_a, contents_b)):
+              if a != b:
+                  content_diffs.append({
+                      "offset": i,
+                      "offset_hex": f"0x{i:X}",
+                      "a": a,
+                      "b": b,
+                      "a_context": contents_a[max(0, i-16):i+17].hex(),
+                      "b_context": contents_b[max(0, i-16):i+17].hex(),
+                  })
+
+          quill_a = read_stream(payloads["color"], "Quill/QuillSub/CONTENTS")
+          quill_b = read_stream(payloads["bw"], "Quill/QuillSub/CONTENTS")
+          matcher = difflib.SequenceMatcher(None, quill_a, quill_b, autojunk=False)
+          opcodes = []
+          for tag, i1, i2, j1, j2 in matcher.get_opcodes():
+              if tag != "equal":
+                  opcodes.append({
+                      "tag": tag,
+                      "a_start": i1,
+                      "a_end": i2,
+                      "a_len": i2-i1,
+                      "b_start": j1,
+                      "b_end": j2,
+                      "b_len": j2-j1,
+                      "a_prefix": quill_a[i1:min(i2, i1+64)].hex(),
+                      "b_prefix": quill_b[j1:min(j2, j1+64)].hex(),
+                  })
+
+          result = {
+              "file_sha256": {
+                  "color": hashlib.sha256(payloads["color"]).hexdigest(),
+                  "bw": hashlib.sha256(payloads["bw"]).hexdigest(),
+              },
+              "contents": {
+                  "len_color": len(contents_a),
+                  "len_bw": len(contents_b),
+                  "diff_count": len(content_diffs),
+                  "diffs": content_diffs,
+              },
+              "quill": {
+                  "len_color": len(quill_a),
+                  "len_bw": len(quill_b),
+                  "opcode_count": len(opcodes),
+                  "opcodes": opcodes,
+              },
+          }
+          print(json.dumps(result, ensure_ascii=False, indent=2))
+          with open("dettie-diff.json", "w", encoding="utf-8") as f:
+              json.dump(result, f, ensure_ascii=False, indent=2)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dettie-pub2000-diff
+          path: dettie-diff.json
+          retention-days: 7
