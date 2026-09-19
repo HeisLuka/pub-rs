@@ -128,17 +128,32 @@
       "experiment_id": "Paragraph alignment micro-fixtures",
       "family": "paragraph-alignment",
       "role": "control",
-      "availability": "design_only",
-      "size": null,
-      "sha256": null,
-      "mutation_contract": "Независимая style topology, где alignment может материализоваться через STSH/formatting path.",
+      "availability": "external_pinned",
+      "size": 306176,
+      "sha256": "f079765650af152e1ae1fbfded757f679c588ceea884b77329a240c578884c25",
+      "mutation_contract": "Exact Aspose halloween-flyer.pub is a candidate source for the already-observed second alignment topology. Runtime must first verify unique Text Box 20 containing 'Children' with initial COM Alignment=2. Primary first-pass mutations are 2->1, 2->3, 2->4. Reverse 1->2 requires a separately pinned value-1 derivative.",
       "expected_result": null,
-      "provenance": "Paragraph alignment task",
+      "provenance": "Aspose public Git fixture + project PARA-ALIGN cross-fixture observation on txt-same-02/control-input.pub. Exact equality between historical control-input copy and upstream source is not assumed; runtime locator/precondition must be revalidated on this exact upstream hash.",
       "required_tags": [
         "PUB_ORACLE_ID=ALIGN_TARGET"
       ],
-      "runtime_role": "source",
-      "local_filename": "ALIGN-STYLE-TOPOLOGY-BASE.pub"
+      "runtime_role": "source_for_style_alignment_2_to_1_3_4",
+      "local_filename": "ALIGN-STYLE-TOPOLOGY-BASE.pub",
+      "source_identity": {
+        "repository": "aspose-pub/Aspose.PUB-for-.NET",
+        "commit": "beee619f9a4b7e2c8908e0fa132f4f4650b08975",
+        "path": "Examples/Data/halloween-flyer.pub",
+        "git_blob_sha1": "6610c53ff345d4e11e03b7fffd1cd128b3ae4052"
+      },
+      "locator_contract": {
+        "primary": "PUB_ORACLE_ID=ALIGN_TARGET if a separately pinned tagged derivative is used",
+        "external_fallback": {
+          "required_sha256": "f079765650af152e1ae1fbfded757f679c588ceea884b77329a240c578884c25",
+          "shape_name": "Text Box 20",
+          "text_contains": "Children",
+          "required_initial_alignment": 2
+        }
+      }
     },
     {
       "fixture_id": "PACK-EMBEDDED-PNG-BASE",
