@@ -223,14 +223,8 @@ pub fn parse_confirmed_0x2c_trailer_root(
     let mut cursor = ContentsCursor::bounded(stream.clone(), bytes, roots_start, roots_len)?;
 
     let slot_count_block = parse_confirmed_block(&mut cursor)?;
-    validate_root(
-        &slot_count_block,
-        0,
-        TRAILER_SLOT_COUNT_ID,
-        BLOCK_TYPE_U32,
-    )?;
-    let (slot_count, slot_count_source) =
-        read_u32_root(&slot_count_block, 0)?;
+    validate_root(&slot_count_block, 0, TRAILER_SLOT_COUNT_ID, BLOCK_TYPE_U32)?;
+    let (slot_count, slot_count_source) = read_u32_root(&slot_count_block, 0)?;
 
     let max_ordinal_block = parse_confirmed_block(&mut cursor)?;
     validate_root(
@@ -239,8 +233,7 @@ pub fn parse_confirmed_0x2c_trailer_root(
         TRAILER_MAX_ORDINAL_ID,
         BLOCK_TYPE_U32,
     )?;
-    let (max_ordinal, max_ordinal_source) =
-        read_u32_root(&max_ordinal_block, 1)?;
+    let (max_ordinal, max_ordinal_source) = read_u32_root(&max_ordinal_block, 1)?;
 
     let directory_block = parse_confirmed_block(&mut cursor)?;
     validate_root(
