@@ -143,12 +143,10 @@ $adapterResult = [ordered]@{
 try {
     $adapterResult.started_at = [DateTimeOffset]::Now.ToString("o")
     & (Resolve-Path -LiteralPath $AdapterScript).Path -RunContextPath $contextPath
-    $adapterResult.exit_code = if ($null -eq $LASTEXITCODE) { 0 } else { [int]$LASTEXITCODE }
-
-    if ($adapterResult.exit_code -ne 0) {
-        throw "Adapter завершился с exit code $($adapterResult.exit_code)"
-    }
-
+    # PowerShell-адаптер сигнализирует ошибку через terminating exception.
+    # $LASTEXITCODE здесь не используется: он относится к последнему native process
+    # и может содержать значение от совершенно другой команды.
+    $adapterResult.exit_code = 0
     $adapterResult.status = "ok"
 }
 catch {
@@ -168,10 +166,8 @@ finally {
     Write-PubJson -Value $adapterResult -Path (Join-Path $runDir "adapter-result.json")
 }
 
-$recordsBeforeHashes = Get-PubDirectoryHashes -Root $runDir |
+$recordsBeforeFinalManifest = Get-PubDirectoryHashes -Root $runDir |
     Where-Object { $_.path -ne "hashes.sha256" -and $_.path -ne "run-manifest.json" }
-
-Write-PubHashList -Records $recordsBeforeHashes -Path (Join-Path $runDir "hashes.sha256")
 
 $runManifest = [ordered]@{
     schema = "pub-runtime/run-manifest/v1"
@@ -184,7 +180,7 @@ $runManifest = [ordered]@{
     source_sha256 = $sourceRecord.sha256
     snapshot_id = $SnapshotId
     adapter_result = $adapterResult
-    artifact_count_before_final_manifest = @($recordsBeforeHashes).Count
+    artifact_count_before_final_manifest = @($recordsBeforeFinalManifest).Count
     guardrails = @(
         "Успешный envelope-run не доказывает semantic/read/write контракт PUB.",
         "Native claim допустим только после experiment-specific анализа и evidence reconciliation.",
@@ -192,6 +188,11 @@ $runManifest = [ordered]@{
     )
 }
 Write-PubJson -Value $runManifest -Path (Join-Path $runDir "run-manifest.json")
+
+# Финальный hash-list покрывает все artifacts, включая run-manifest, кроме самого себя.
+$finalRecords = Get-PubDirectoryHashes -Root $runDir |
+    Where-Object { $_.path -ne "hashes.sha256" }
+Write-PubHashList -Records $finalRecords -Path (Join-Path $runDir "hashes.sha256")
 
 Write-Host "PUB runtime envelope завершён."
 Write-Host "Run: $runDir"
