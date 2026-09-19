@@ -10,6 +10,9 @@ param(
     [string]$SentinelAsset,
 
     [Parameter(Mandatory = $false)]
+    [string]$SourceFixtureId = "",
+
+    [Parameter(Mandatory = $false)]
     [string]$OutputPub = "",
 
     [Parameter(Mandatory = $false)]
@@ -101,6 +104,10 @@ try {
         "-ExternalAssets", ('"' + $SentinelAsset + '"'),
         "-RequirePublisher"
     )
+
+    if (-not [string]::IsNullOrWhiteSpace($SourceFixtureId)) {
+        $arguments += @("-SourceFixtureId", $SourceFixtureId)
+    }
 
     $runnerProcess = Start-Process -FilePath $hostPath -ArgumentList $arguments -PassThru -Wait
     if ($runnerProcess.ExitCode -ne 0) {
