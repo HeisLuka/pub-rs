@@ -8,6 +8,7 @@ mod document;
 mod document_write;
 mod identity;
 mod reference;
+mod trailer;
 
 pub use block::{
     BLOCK_TYPE_CONTAINER_88, BLOCK_TYPE_CONTAINER_90, BLOCK_TYPE_CONTAINER_A0, BLOCK_TYPE_DUMMY,
@@ -37,6 +38,10 @@ pub use reference::{
     CHUNK_REFERENCE_WIRE_U16, CHUNK_REFERENCE_WIRE_U16_SERVICE, ChunkReferenceReadError,
     Contents0x2cChunkReference, ObservedU16Field, ObservedU32Field,
     parse_confirmed_chunk_reference,
+};
+pub use trailer::{
+    TRAILER_DIRECTORY_ID, TRAILER_MAX_ORDINAL_ID, TRAILER_SLOT_COUNT_ID, Contents0x2cTrailerRoot,
+    TrailerRootReadError, parse_confirmed_0x2c_trailer_root,
 };
 
 pub const CONTENTS_0X22_MAGIC: [u8; 4] = [0xE8, 0xAC, 0x22, 0x00];
