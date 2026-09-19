@@ -155,20 +155,22 @@ foreach ($wave in $plan.waves) {
                 Add-PlanRow "case" $caseKey "SCHEMA_ERROR" "Case state отсутствует"
                 $schemaError = $true
             }
-            elseif ($state -eq "needs_parameters") {
+            elseif ($state -like "needs_*" -or $state -like "after_*") {
                 $unresolvedValue = Get-OptionalProperty -Object $case -Name "unresolved"
-                $unresolved = @($unresolvedValue)
-                if ($unresolved.Count -eq 0) {
-                    Add-PlanRow "case" $caseKey "SCHEMA_ERROR" "needs_parameters без unresolved"
-                    $schemaError = $true
+                $unresolved = @($unresolvedValue | Where-Object { $null -ne $_ -and -not [string]::IsNullOrWhiteSpace([string]$_) })
+                $detail = "state=$state"
+                if ($unresolved.Count -gt 0) {
+                    $detail += "; unresolved=" + ($unresolved -join ",")
                 }
-                else {
-                    Add-PlanRow "case" $caseKey "BLOCKED" ("unresolved=" + ($unresolved -join ","))
-                    $executionBlocked = $true
-                }
+                Add-PlanRow "case" $caseKey "BLOCKED" $detail
+                $executionBlocked = $true
+            }
+            elseif ($state -eq "ready" -or $state -like "ready_when_*") {
+                Add-PlanRow "case" $caseKey "DEFINED" $state
             }
             else {
-                Add-PlanRow "case" $caseKey "DEFINED" $state
+                Add-PlanRow "case" $caseKey "SCHEMA_ERROR" "Неизвестный state=$state; допустимы ready, ready_when_*, needs_*, after_*"
+                $schemaError = $true
             }
 
             $sourceFixtureId = Get-OptionalProperty -Object $case -Name "source_fixture_id"
