@@ -36,6 +36,20 @@ foreach ($fixture in $manifest.fixtures) {
         throw "external_pinned fixture без immutable raw_url: $($fixture.fixture_id)"
     }
 
+    $rawUrl = [string]$rawUrlProperty.Value
+    $parsedUri = $null
+    if (-not [System.Uri]::TryCreate($rawUrl, [System.UriKind]::Absolute, [ref]$parsedUri) -or $parsedUri.Scheme -ne "https") {
+        throw "external_pinned raw_url должен быть абсолютным HTTPS URL: $rawUrl"
+    }
+
+    $commitProperty = $sourceIdentityProperty.Value.PSObject.Properties["commit"]
+    if ($null -ne $commitProperty -and -not [string]::IsNullOrWhiteSpace([string]$commitProperty.Value)) {
+        $commit = [string]$commitProperty.Value
+        if ($rawUrl.IndexOf($commit, [System.StringComparison]::OrdinalIgnoreCase) -lt 0) {
+            throw "raw_url не содержит pinned commit=$commit для fixture $($fixture.fixture_id)"
+        }
+    }
+
     $expectedHash = ([string]$fixture.sha256).ToLowerInvariant()
     $expectedSize = [int64]$fixture.size
     $destination = Join-Path $root ([string]$localFilenameProperty.Value)
@@ -64,7 +78,7 @@ foreach ($fixture in $manifest.fixtures) {
     }
 
     try {
-        Invoke-WebRequest -Uri ([string]$rawUrlProperty.Value) -OutFile $tempPath -UseBasicParsing
+        Invoke-WebRequest -Uri $rawUrl -OutFile $tempPath -UseBasicParsing
 
         $download = Get-Item -LiteralPath $tempPath
         $actualHash = (Get-FileHash -LiteralPath $tempPath -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -80,7 +94,7 @@ foreach ($fixture in $manifest.fixtures) {
 
         $downloaded += [ordered]@{
             fixture_id = [string]$fixture.fixture_id
-            source_url = [string]$rawUrlProperty.Value
+            source_url = $rawUrl
             path = $destination
             size = [int64]$download.Length
             sha256 = $actualHash
