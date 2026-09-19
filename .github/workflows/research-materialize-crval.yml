@@ -133,27 +133,76 @@ jobs:
           outputs["VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1.pub"] = crval05
 
           observed = {}
+          pinned_names = []
+          crval05_name = "VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1.pub"
+
           for name, data in outputs.items():
               digest = hashlib.sha256(data).hexdigest()
-              observed[name] = {"size": len(data), "sha256": digest}
+              matches = digest == expected_hashes[name]
+              observed[name] = {
+                  "size": len(data),
+                  "sha256": digest,
+                  "expected_sha256": expected_hashes[name],
+                  "canonical_hash_match": matches,
+              }
               if len(data) != 65536:
                   raise SystemExit(f"{name}: размер {len(data)} вместо 65536")
-              if digest != expected_hashes[name]:
+
+              if name == crval05_name:
+                  # CRVAL05 остаётся fail-closed: attachment hash из OBS-R27-05
+                  # не подменяется hash'ем реконструкции по неполному описанию.
+                  if matches:
+                      path = root / name
+                      if path.exists():
+                          raise SystemExit(f"Refuse overwrite: {path}")
+                      path.write_bytes(data)
+                      pinned_names.append(name)
+                  continue
+
+              if not matches:
                   raise SystemExit(
                       f"{name}: SHA-256 mismatch: expected={expected_hashes[name]} actual={digest}"
                   )
+
               path = root / name
               if path.exists():
                   raise SystemExit(f"Refuse overwrite: {path}")
               path.write_bytes(data)
+              pinned_names.append(name)
+
+          manifest_path = root / "manifest.json"
+          manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+          pinned_fixture_ids = {
+              "VAL-PARKER-BASELINE",
+              "VAL-CRVAL01-INTERNAL-CR-TO-R",
+              "VAL-CRVAL02-TERMINAL-CR-TO-R",
+              "VAL-CRVAL03-TERMINAL-CR-TO-LF",
+              "VAL-CRVAL04-FDPP-PLUS2",
+          }
+          if observed[crval05_name]["canonical_hash_match"]:
+              pinned_fixture_ids.add("VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1")
+
+          for fixture in manifest["fixtures"]:
+              if fixture["fixture_id"] in pinned_fixture_ids:
+                  fixture["availability"] = "pinned"
+
+          manifest_path.write_text(
+              json.dumps(manifest, ensure_ascii=False, indent=2) + "\n",
+              encoding="utf-8",
+          )
 
           receipt = {
-              "schema": "pub-crval-materialization/v1",
+              "schema": "pub-crval-materialization/v2",
               "source_url": "https://steve-parker.org/articles/ms_publisher/8/is.pub",
               "source_size": 65536,
               "source_sha256": expected_hashes["VAL-PARKER-BASELINE.pub"],
               "materialization": "exact baseline + documented fixed-width mutation contracts",
-              "canonical_hash_match": True,
+              "pinned_outputs": pinned_names,
+              "crval05_status": (
+                  "pinned"
+                  if observed[crval05_name]["canonical_hash_match"]
+                  else "bytes_pending_documented_recipe_hash_mismatch"
+              ),
               "outputs": observed,
           }
           (root / "crval-materialization.json").write_text(
@@ -256,6 +305,16 @@ jobs:
           set -euo pipefail
           git config user.name "pub-rs research bot"
           git config user.email "actions@users.noreply.github.com"
-          git add             fixtures/batch-01/VAL-PARKER-BASELINE.pub             fixtures/batch-01/VAL-CRVAL01-INTERNAL-CR-TO-R.pub             fixtures/batch-01/VAL-CRVAL02-TERMINAL-CR-TO-R.pub             fixtures/batch-01/VAL-CRVAL03-TERMINAL-CR-TO-LF.pub             fixtures/batch-01/VAL-CRVAL04-FDPP-PLUS2.pub             fixtures/batch-01/VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1.pub             fixtures/batch-01/crval-materialization.json
+          git add \
+            fixtures/batch-01/manifest.json \
+            fixtures/batch-01/VAL-PARKER-BASELINE.pub \
+            fixtures/batch-01/VAL-CRVAL01-INTERNAL-CR-TO-R.pub \
+            fixtures/batch-01/VAL-CRVAL02-TERMINAL-CR-TO-R.pub \
+            fixtures/batch-01/VAL-CRVAL03-TERMINAL-CR-TO-LF.pub \
+            fixtures/batch-01/VAL-CRVAL04-FDPP-PLUS2.pub \
+            fixtures/batch-01/crval-materialization.json
+          if [[ -f fixtures/batch-01/VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1.pub ]]; then
+            git add fixtures/batch-01/VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1.pub
+          fi
           git commit -m "Материализовать exact Parker CRVAL fixtures"
           git push origin HEAD:research/batch-fixtures-01
