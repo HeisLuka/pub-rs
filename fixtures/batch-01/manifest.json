@@ -91,9 +91,13 @@
       "availability": "design_only",
       "size": null,
       "sha256": null,
-      "mutation_contract": "Один wizard/scenario publication с одним tagged/tracked child; база для orthogonal format/move/resize/rotation/restore/scenario arms.",
+      "mutation_contract": "Wizard/scenario publication with one tagged tracked child. Fresh exact source for each object-level arm and ChangeDocument scenario arm.",
       "expected_result": null,
-      "provenance": "MORPH-FLAGS-01 Definition of Done"
+      "provenance": "MORPH-FLAGS-01 Definition of Done",
+      "required_tags": [
+        "PUB_ORACLE_ID=MORPH_TARGET"
+      ],
+      "runtime_role": "source_for_format_move_resize_rotation_and_change_document"
     },
     {
       "fixture_id": "ALIGN-EXPLICIT-PARAGRAPH-BASE",
@@ -211,6 +215,23 @@
       ],
       "runtime_role": "generated_output_class",
       "source_topology": null
+    },
+    {
+      "fixture_id": "MORPH-MOVED-LEFT-SOURCE",
+      "experiment_id": "MORPH-FLAGS-01",
+      "family": "wizard-scenario",
+      "role": "control",
+      "availability": "design_only",
+      "size": null,
+      "sha256": null,
+      "required_tags": [
+        "PUB_ORACLE_ID=MORPH_TARGET",
+        "MORPH_BASE_LEFT=<invariant decimal>"
+      ],
+      "runtime_role": "source_for_restore_left_only",
+      "mutation_contract": "Same semantic wizard object already in moved state. Only runtime mutation is Shape.Left restore to MORPH_BASE_LEFT.",
+      "expected_result": null,
+      "provenance": "MORPH-FLAGS-01 / restore causal contract"
     }
   ]
 }
