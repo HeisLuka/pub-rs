@@ -5,6 +5,7 @@ use std::fmt;
 mod block;
 mod directory;
 mod document;
+mod document_write;
 mod reference;
 
 pub use block::{
@@ -19,6 +20,10 @@ pub use directory::{
 pub use document::{
     DOCUMENT_PAGE_LIST_ID, DocumentPageList, DocumentPageListEntry, DocumentPageListReadError,
     parse_confirmed_document_page_list,
+};
+pub use document_write::{
+    DocumentSequenceHandlePatch, DocumentSequencePermutationError, DocumentSequencePermutationPlan,
+    apply_confirmed_document_sequence_permutation, plan_confirmed_document_sequence_permutation,
 };
 pub use reference::{
     CHUNK_REFERENCE_OFFSET_ID, CHUNK_REFERENCE_PARENT_SEQ_NUM_ID, CHUNK_REFERENCE_RAW_TYPE_ID,
