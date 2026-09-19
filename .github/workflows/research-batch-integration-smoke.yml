@@ -53,8 +53,8 @@ jobs:
                   [ref]$errors
               ) | Out-Null
               if ($errors.Count -gt 0) {
-                  foreach ($error in $errors) {
-                      Write-Error "$($file.FullName): $($error.Message)"
+                  foreach ($parseError in $errors) {
+                      Write-Error "$($file.FullName): $($parseError.Message)"
                   }
                   $failed = $true
               }
