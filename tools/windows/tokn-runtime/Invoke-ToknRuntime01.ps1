@@ -43,6 +43,16 @@ $SaveFormatMap = @{
     publisher2000 = $PbFilePublisher2000
 }
 
+function Format-HResult {
+    param(
+        [Parameter(Mandatory = $true)]
+        [int]$HResult
+    )
+
+    # HResult — signed Int32; маска сохраняет исходный 32-битный битовый образ.
+    return ('0x{0:X8}' -f ($HResult -band 0xFFFFFFFFL))
+}
+
 function Get-SafeValue {
     param(
         [Parameter(Mandatory = $true)]
@@ -61,7 +71,7 @@ function Get-SafeValue {
     catch {
         $hresult = $null
         if ($_.Exception.HResult) {
-            $hresult = ('0x{0:X8}' -f ([uint32]$_.Exception.HResult))
+            $hresult = Format-HResult ([int]$_.Exception.HResult)
         }
 
         return [ordered]@{
@@ -197,11 +207,11 @@ function Get-DocumentSnapshot {
 
             try {
                 if ([int]$shape.HasTextFrame -ne 0) {
-                    $shapeSnapshot.text = Get-TextSnapshot $shape
+                    $shapeSnapshot["text"] = Get-TextSnapshot $shape
                 }
             }
             catch {
-                $shapeSnapshot.text = [ordered]@{
+                $shapeSnapshot["text"] = [ordered]@{
                     error = $_.Exception.Message
                 }
             }
@@ -426,7 +436,7 @@ function Invoke-OneCase {
         }
 
         $pre = Get-DocumentSnapshot $application $document "pre-save" $CaseId $SaveFormatName
-        $pre.seed = $seed
+        $pre["seed"] = $seed
         $pre | ConvertTo-Json -Depth 16 | Set-Content -LiteralPath $prePath -Encoding utf8
 
         $document.SaveAs($pubPath, [int]$SaveFormatMap[$SaveFormatName], $false)
@@ -491,7 +501,7 @@ foreach ($caseId in $Cases) {
                 status = "error"
                 message = $_.Exception.Message
                 hresult = if ($_.Exception.HResult) {
-                    ('0x{0:X8}' -f ([uint32]$_.Exception.HResult))
+                    Format-HResult ([int]$_.Exception.HResult)
                 }
                 else {
                     $null
