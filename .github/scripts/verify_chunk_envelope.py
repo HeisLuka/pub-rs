@@ -9,6 +9,10 @@ import olefile
 
 FIXTURES = [
     (
+        "Online-Convert example_multipage.pub",
+        "https://example-files.online-convert.com/document/pub/example_multipage.pub",
+    ),
+    (
         "PRONOM Publisher 2002",
         "https://raw.githubusercontent.com/digital-preservation/pronom-research-week/master/MicrosoftPublisher/Sample%20Files/MSPublisher2002.PUB",
     ),
@@ -27,10 +31,6 @@ FIXTURES = [
     (
         "Apache POI 60685.pub",
         "https://raw.githubusercontent.com/apache/poi/trunk/test-data/publisher/60685.pub",
-    ),
-    (
-        "Online-Convert example_multipage.pub",
-        "https://example-files.online-convert.com/document/pub/example_multipage.pub",
     ),
 ]
 
