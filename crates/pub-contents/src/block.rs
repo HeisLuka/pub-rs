@@ -4,9 +4,11 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 pub const BLOCK_TYPE_U32: u8 = 0x20;
+pub const BLOCK_TYPE_HANDLE_U32: u8 = 0x70;
 pub const BLOCK_TYPE_DUMMY: u8 = 0x78;
 pub const BLOCK_TYPE_CONTAINER_88: u8 = 0x88;
 pub const BLOCK_TYPE_CONTAINER_90: u8 = 0x90;
+pub const BLOCK_TYPE_CONTAINER_A0: u8 = 0xA0;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct RawContentsBlock {
@@ -105,7 +107,7 @@ fn parse_confirmed_block_inner(
     let (block_type, _) = cursor.read_u8()?;
 
     let body = match block_type {
-        BLOCK_TYPE_U32 => {
+        BLOCK_TYPE_U32 | BLOCK_TYPE_HANDLE_U32 => {
             let (value, value_source) = cursor.read_u32_le()?;
             RawContentsBlockBody::U32 {
                 value,
@@ -113,7 +115,7 @@ fn parse_confirmed_block_inner(
             }
         }
         BLOCK_TYPE_DUMMY => RawContentsBlockBody::Empty,
-        BLOCK_TYPE_CONTAINER_88 | BLOCK_TYPE_CONTAINER_90 => {
+        BLOCK_TYPE_CONTAINER_88 | BLOCK_TYPE_CONTAINER_90 | BLOCK_TYPE_CONTAINER_A0 => {
             let (declared_length, length_source) = cursor.read_u32_le()?;
             if declared_length < 4 {
                 return Err(BlockReadError::InvalidDeclaredLength {
@@ -193,6 +195,32 @@ mod tests {
     }
 
     #[test]
+    fn parses_handle_u32_block() {
+        let mut cursor = ContentsCursor::new(
+            StreamPath("/Contents".into()),
+            &[0x00, 0x70, 0x27, 0x01, 0x00, 0x00],
+        );
+
+        let block =
+            parse_confirmed_block(&mut cursor).expect("handle-u32 блок должен читаться");
+
+        assert_eq!(block.id, 0x00);
+        assert_eq!(block.block_type, BLOCK_TYPE_HANDLE_U32);
+        assert_eq!(
+            block.body,
+            RawContentsBlockBody::U32 {
+                value: 295,
+                value_source: RawSpan {
+                    stream: StreamPath("/Contents".into()),
+                    offset: 2,
+                    len: 4,
+                },
+            }
+        );
+        assert_eq!(cursor.position(), 6);
+    }
+
+    #[test]
     fn parses_dummy_as_two_byte_block() {
         let mut cursor = ContentsCursor::new(StreamPath("/Contents".into()), &[0x00, 0x78]);
 
@@ -228,6 +256,29 @@ mod tests {
             }
         );
         assert_eq!(cursor.position(), 10);
+    }
+
+    #[test]
+    fn parses_a0_container_with_generic_length_rule() {
+        let bytes = [
+            0x02, 0xA0, 0x0A, 0x00, 0x00, 0x00,
+            0x00, 0x70, 0x07, 0x01, 0x00, 0x00,
+        ];
+        let mut cursor = ContentsCursor::new(StreamPath("/Contents".into()), &bytes);
+
+        let block = parse_confirmed_block(&mut cursor)
+            .expect("A0-контейнер должен использовать подтверждённое variable-length framing");
+
+        assert_eq!(block.id, 0x02);
+        assert_eq!(block.block_type, BLOCK_TYPE_CONTAINER_A0);
+        assert_eq!(block.source.len, 12);
+        assert!(matches!(
+            block.body,
+            RawContentsBlockBody::Container {
+                declared_length: 10,
+                ..
+            }
+        ));
     }
 
     #[test]
