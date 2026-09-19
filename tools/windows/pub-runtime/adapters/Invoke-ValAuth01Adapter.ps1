@@ -79,12 +79,27 @@ $registrySubKey = "Software\Microsoft\Office\$major.0\Publisher"
 $policyRegistrySubKey = "Software\Policies\Microsoft\Office\$major.0\publisher"
 $valueName = "PromptForBadFiles"
 
-$policyRegistryKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($policyRegistrySubKey, $false)
-if ($null -ne $policyRegistryKey) {
+$policyRoots = @(
+    [ordered]@{
+        hive = "HKCU"
+        root = [Microsoft.Win32.Registry]::CurrentUser
+    },
+    [ordered]@{
+        hive = "HKLM"
+        root = [Microsoft.Win32.Registry]::LocalMachine
+    }
+)
+
+foreach ($policyRoot in $policyRoots) {
+    $policyRegistryKey = $policyRoot.root.OpenSubKey($policyRegistrySubKey, $false)
+    if ($null -eq $policyRegistryKey) {
+        continue
+    }
+
     try {
         if (@($policyRegistryKey.GetValueNames()) -contains $valueName) {
             $policyValue = $policyRegistryKey.GetValue($valueName)
-            throw "Нельзя выполнить controlled PromptForBadFiles A/B: policy path HKCU\$policyRegistrySubKey уже задаёт $valueName=$policyValue"
+            throw "Нельзя выполнить controlled PromptForBadFiles A/B: policy path $($policyRoot.hive)\$policyRegistrySubKey уже задаёт $valueName=$policyValue"
         }
     }
     finally {
@@ -230,7 +245,10 @@ try {
         policy = [ordered]@{
             mode = $policyMode
             registry_subkey = "HKCU\$registrySubKey"
-            policy_registry_subkey = "HKCU\$policyRegistrySubKey"
+            policy_registry_subkeys_checked = @(
+                "HKCU\$policyRegistrySubKey",
+                "HKLM\$policyRegistrySubKey"
+            )
             policy_override_present = $false
             value_name = $valueName
             effective_test_value = if ($policyMode -eq "prompt") { 1 } else { $null }
@@ -294,11 +312,28 @@ finally {
     }
 
     if (-not $keyExistedBefore) {
-        try {
-            [Microsoft.Win32.Registry]::CurrentUser.DeleteSubKeyTree($registrySubKey, $false)
-        }
-        catch {
-            # Если Publisher создал дополнительные значения во время run, cleanup-ошибка не должна маскировать evidence.
+        # Не удаляем всё дерево: Publisher мог создать собственные значения во время Open.
+        # Удалить созданный нами key можно только если после restore он действительно пуст.
+        $cleanupKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($registrySubKey, $false)
+        if ($null -ne $cleanupKey) {
+            try {
+                $canDeleteKey = (
+                    @($cleanupKey.GetValueNames()).Count -eq 0 -and
+                    @($cleanupKey.GetSubKeyNames()).Count -eq 0
+                )
+            }
+            finally {
+                $cleanupKey.Close()
+            }
+
+            if ($canDeleteKey) {
+                try {
+                    [Microsoft.Win32.Registry]::CurrentUser.DeleteSubKey($registrySubKey, $false)
+                }
+                catch {
+                    # Cleanup не должен маскировать уже сохранённое evidence.
+                }
+            }
         }
     }
 }
