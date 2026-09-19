@@ -174,6 +174,16 @@ function Get-StableEnvironmentProjection {
 $resolvedOutputRoot = [System.IO.Path]::GetFullPath($OutputRoot)
 New-Item -ItemType Directory -Force -Path $resolvedOutputRoot | Out-Null
 
+$runStarted = [DateTimeOffset]::Now
+$safeSnapshotId = ($SnapshotId -replace '[^A-Za-z0-9._-]', '_')
+$runId = $runStarted.ToUniversalTime().ToString("yyyyMMddTHHmmssfffZ")
+$runDir = Join-Path (Join-Path $resolvedOutputRoot $safeSnapshotId) $runId
+
+if (Test-Path -LiteralPath $runDir) {
+    throw "Environment preflight run directory уже существует; evidence нельзя перезаписывать: $runDir"
+}
+New-Item -ItemType Directory -Force -Path $runDir | Out-Null
+
 $captures = @()
 for ($i = 1; $i -le $Repeat; $i++) {
     $base = Get-PubEnvironmentManifest -SnapshotId $SnapshotId -RequirePublisher -Visible:$Visible
@@ -185,7 +195,7 @@ for ($i = 1; $i -le $Repeat; $i++) {
     $base["stable_fingerprint_sha256"] = Get-TextSha256 $projectionJson
     $base["capture_index"] = $i
 
-    $capturePath = Join-Path $resolvedOutputRoot ("environment-{0:D2}.json" -f $i)
+    $capturePath = Join-Path $runDir ("environment-{0:D2}.json" -f $i)
     Write-PubJson -Value $base -Path $capturePath
 
     $captures += [ordered]@{
@@ -199,6 +209,8 @@ $fingerprints = @($captures | ForEach-Object { $_.stable_fingerprint_sha256 } | 
 $comparison = [ordered]@{
     schema = "pub-runtime/environment-comparison/v1"
     snapshot_id = $SnapshotId
+    run_id = $runId
+    run_dir = $runDir
     capture_count = $captures.Count
     stable = ($fingerprints.Count -eq 1)
     distinct_stable_fingerprints = $fingerprints
@@ -216,13 +228,14 @@ $comparison = [ordered]@{
     )
 }
 
-$comparisonPath = Join-Path $resolvedOutputRoot "comparison.json"
+$comparisonPath = Join-Path $runDir "comparison.json"
 Write-PubJson -Value $comparison -Path $comparisonPath
 
 Write-Host "LAB-ENV-01 завершён."
 Write-Host "Snapshot: $SnapshotId"
 Write-Host "Captures: $($captures.Count)"
 Write-Host "Stable: $($comparison.stable)"
+Write-Host "Run: $runDir"
 Write-Host "Comparison: $comparisonPath"
 
 if (-not $comparison.stable) {
