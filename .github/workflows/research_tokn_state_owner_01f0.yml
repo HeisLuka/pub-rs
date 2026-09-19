@@ -1,0 +1,20 @@
+name: research-tokn-state-owner-01f0
+
+on:
+  push:
+    branches:
+      - research/tokn-state-owner-20260919
+    paths:
+      - "research/tokn_state_owner_01f0_probe.py"
+      - ".github/workflows/research_tokn_state_owner_01f0.yml"
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: python -m pip install olefile
+      - run: python research/tokn_state_owner_01f0_probe.py
