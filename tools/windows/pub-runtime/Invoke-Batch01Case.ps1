@@ -104,12 +104,12 @@ function Resolve-PinnedFixture {
         throw "Fixture $FixtureId помечен $availability, но canonical SHA-256 отсутствует"
     }
     if ($actualHash -ne $expectedHash) {
-        throw "SHA-256 mismatch fixture $FixtureId: expected=$expectedHash actual=$actualHash"
+        throw "SHA-256 mismatch fixture ${FixtureId}: expected=$expectedHash actual=$actualHash"
     }
 
     $sizeProperty = Get-OptionalProperty -Object $fixture -Name "size"
     if ($null -ne $sizeProperty -and [int64]$sizeProperty -ne [int64]$item.Length) {
-        throw "Size mismatch fixture $FixtureId: expected=$sizeProperty actual=$($item.Length)"
+        throw "Size mismatch fixture ${FixtureId}: expected=$sizeProperty actual=$($item.Length)"
     }
 
     return [ordered]@{
@@ -141,7 +141,7 @@ foreach ($wave in $plan.waves) {
 }
 
 if ($caseMatches.Count -ne 1) {
-    throw "Run-plan должен содержать ровно один exact case $ExperimentId::$CaseId; найдено $($caseMatches.Count)"
+    throw "Run-plan должен содержать ровно один exact case ${ExperimentId}::$CaseId; найдено $($caseMatches.Count)"
 }
 
 $selection = $caseMatches[0]
@@ -161,10 +161,10 @@ if ($requiredSnapshotLabel -ne $SnapshotId) {
 
 $state = [string](Get-OptionalProperty -Object $selection.case -Name "state")
 if ([string]::IsNullOrWhiteSpace($state)) {
-    throw "Case $ExperimentId::$CaseId не имеет state"
+    throw "Case ${ExperimentId}::$CaseId не имеет state"
 }
 if ($state -like "needs_*" -or $state -like "after_*") {
-    throw "Case $ExperimentId::$CaseId заблокирован run-plan state=$state"
+    throw "Case ${ExperimentId}::$CaseId заблокирован run-plan state=$state"
 }
 if ($state -ne "ready" -and $state -notlike "ready_when_*") {
     throw "Неизвестный/неисполняемый run-plan state=$state"
@@ -172,7 +172,7 @@ if ($state -ne "ready" -and $state -notlike "ready_when_*") {
 
 $sourceFixtureId = [string](Get-OptionalProperty -Object $selection.case -Name "source_fixture_id")
 if ([string]::IsNullOrWhiteSpace($sourceFixtureId)) {
-    throw "Case $ExperimentId::$CaseId не имеет source_fixture_id"
+    throw "Case ${ExperimentId}::$CaseId не имеет source_fixture_id"
 }
 $source = Resolve-PinnedFixture -FixtureId $sourceFixtureId
 
