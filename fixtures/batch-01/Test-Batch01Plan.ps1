@@ -1,9 +1,9 @@
-param(
+﻿param(
     [Parameter(Mandatory = $false)]
-    [string]$ManifestPath = (Join-Path $PSScriptRoot "manifest.json"),
+    [string]$ManifestPath = "",
 
     [Parameter(Mandatory = $false)]
-    [string]$PlanPath = (Join-Path $PSScriptRoot "run-plan.json"),
+    [string]$PlanPath = "",
 
     [Parameter(Mandatory = $false)]
     [string]$RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path,
@@ -18,6 +18,16 @@ param(
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = "Stop"
+
+if ([string]::IsNullOrWhiteSpace($ManifestPath)) {
+    $ManifestPath = Join-Path $PSScriptRoot "manifest.json"
+}
+if ([string]::IsNullOrWhiteSpace($PlanPath)) {
+    $PlanPath = Join-Path $PSScriptRoot "run-plan.json"
+}
+if ([string]::IsNullOrWhiteSpace($RepoRoot)) {
+    $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\\..")).Path
+}
 
 $manifest = Get-Content -LiteralPath $ManifestPath -Raw | ConvertFrom-Json
 $plan = Get-Content -LiteralPath $PlanPath -Raw | ConvertFrom-Json
