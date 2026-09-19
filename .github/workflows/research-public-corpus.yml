@@ -1,0 +1,250 @@
+name: Исследование публичного корпуса PUB
+
+on:
+  push:
+    branches:
+      - research/public-corpus-acquisition-2026-09-19
+
+permissions:
+  contents: read
+
+jobs:
+  acquire:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v5
+      - name: Установить минимальный OLE-ридер
+        run: python -m pip install --disable-pip-version-check olefile
+      - name: Скачать и отпечатать публичные PUB без сохранения бинарников
+        shell: python
+        run: |
+          import hashlib
+          import io
+          import json
+          import struct
+          import urllib.error
+          import urllib.request
+
+          import olefile
+
+          sources = [
+              {
+                  "name": "UK Willingham Newsletter Summer 2022",
+                  "country": "GB",
+                  "url": "https://willingham-by-stow.parish.lincolnshire.gov.uk/downloads/file/343/newsletter-summer-2022",
+              },
+              {
+                  "name": "Germany Jena Roll-Up template",
+                  "country": "DE",
+                  "url": "https://www.uni-jena.de/unijenamedia/364815/rollup-tem-pub.pub",
+              },
+              {
+                  "name": "USA Adelphi Program Flyer",
+                  "country": "US",
+                  "url": "https://www.adelphi.edu/brand/wp-content/uploads/sites/55/2020/08/Adelphi_ProgramFlyer.pub",
+              },
+              {
+                  "name": "USA Adelphi Event Flyer",
+                  "country": "US",
+                  "url": "https://www.adelphi.edu/brand/wp-content/uploads/sites/55/2020/08/Adelphi_EventFlyer.pub",
+              },
+              {
+                  "name": "USA Adelphi One Page",
+                  "country": "US",
+                  "url": "https://www.adelphi.edu/brand/wp-content/uploads/sites/55/2020/08/Adelphi-OnePage.pub",
+              },
+              {
+                  "name": "USA Adelphi TriFold",
+                  "country": "US",
+                  "url": "https://www.adelphi.edu/brand/wp-content/uploads/sites/55/2020/08/Adelphi-TriFold.pub",
+              },
+              {
+                  "name": "USA Adelphi Newsletter",
+                  "country": "US",
+                  "url": "https://www.adelphi.edu/brand/wp-content/uploads/sites/55/2020/08/Adelphi-Newsletter.pub",
+              },
+              {
+                  "name": "USA Wichita 8.5x11 full bleed template",
+                  "country": "US",
+                  "url": "https://www.wichita.edu/services/printing/_documents/Publisher_8.5x11_portrait_fullbleed_template.pub",
+              },
+              {
+                  "name": "Netherlands BookCrossing Dettie color labels",
+                  "country": "NL",
+                  "url": "https://www.bookcrossing.nl/down/labelsdettie.kl.pub",
+              },
+              {
+                  "name": "Netherlands BookCrossing Dettie black-white labels",
+                  "country": "NL",
+                  "url": "https://www.bookcrossing.nl/down/labelsdettie.zw_w.pub",
+              },
+              {
+                  "name": "Netherlands BookCrossing Yvonnep label",
+                  "country": "NL",
+                  "url": "https://www.bookcrossing.nl/down/bookcrossing-yvonnep.pub",
+              },
+              {
+                  "name": "Netherlands BookCrossing Crossing the World",
+                  "country": "NL",
+                  "url": "https://www.bookcrossing.nl/down/crossingtheworld.pub",
+              },
+              {
+                  "name": "Netherlands BookCrossing Goed Boek",
+                  "country": "NL",
+                  "url": "https://www.bookcrossing.nl/down/goedboek-yvonnep.pub",
+              },
+              {
+                  "name": "Netherlands BookCrossing Hadewychshuis sticker sheet",
+                  "country": "NL",
+                  "url": "https://www.bookcrossing.nl/down/hadewychshuis-stickervelenvelop.pub",
+              },
+              {
+                  "name": "Online-Convert example.pub",
+                  "country": "INT",
+                  "url": "https://example-files.online-convert.com/document/pub/example.pub",
+              },
+              {
+                  "name": "Online-Convert example_multipage.pub",
+                  "country": "INT",
+                  "url": "https://example-files.online-convert.com/document/pub/example_multipage.pub",
+              },
+              {
+                  "name": "France Maitresseuh planner header",
+                  "country": "FR",
+                  "url": "https://ekladata.com/2vTrCQolpimG6CEtoUxcJ1tdXcs/00.-Planner-Maitresseuh-en-tete.pub",
+              },
+              {
+                  "name": "France Maitresseuh schools 1-8",
+                  "country": "FR",
+                  "url": "https://ekladata.com/0EWlvfJz23p_TIqA-SOHPhyfKig/01.-Planner-Maitresseuh-secteur-ecoles-1-a-8.pub",
+              },
+              {
+                  "name": "France Maitresseuh schools",
+                  "country": "FR",
+                  "url": "https://ekladata.com/H9Wdzyy9KeBpsfgYFZmvtz__N8c/01.-Planner-Maitresseuh-secteur-ecoles.pub",
+              },
+              {
+                  "name": "France Maitresseuh interventions",
+                  "country": "FR",
+                  "url": "https://ekladata.com/6bS767rD6BKh3hKt3XZWgfL4gIw/02.-Planner-Maitresseuh-Organisation-interventions.pub",
+              },
+              {
+                  "name": "France Maitresseuh annexes",
+                  "country": "FR",
+                  "url": "https://ekladata.com/iis16vr3FNEvxjxCd837W_s6y7Y/04.-Planner-Maitresseuh-Annexes.pub",
+              },
+          ]
+
+          def clean(value):
+              if isinstance(value, bytes):
+                  return value.decode("utf-8", "replace")
+              if value is None:
+                  return None
+              return str(value)
+
+          def read_u16(data, offset):
+              if offset + 2 > len(data):
+                  return None
+              return struct.unpack_from("<H", data, offset)[0]
+
+          def read_u32(data, offset):
+              if offset + 4 > len(data):
+                  return None
+              return struct.unpack_from("<I", data, offset)[0]
+
+          def ole_props(ole, stream_name):
+              try:
+                  return ole.getproperties(stream_name)
+              except Exception:
+                  return {}
+
+          report = []
+
+          for source in sources:
+              item = dict(source)
+              item["download_ok"] = False
+              try:
+                  request = urllib.request.Request(
+                      source["url"],
+                      headers={
+                          "User-Agent": "pub-rs-corpus-research/1.0 (+https://github.com/HeisLuka/pub-rs)"
+                      },
+                  )
+                  with urllib.request.urlopen(request, timeout=45) as response:
+                      raw = response.read()
+                      item["http_status"] = getattr(response, "status", None)
+                      item["content_type"] = response.headers.get_content_type()
+                      item["content_length_header"] = response.headers.get("Content-Length")
+                      item["final_url"] = response.geturl()
+                  item["download_ok"] = True
+                  item["size"] = len(raw)
+                  item["sha256"] = hashlib.sha256(raw).hexdigest()
+                  item["prefix32"] = raw[:32].hex()
+                  item["legacy_pub1_magic"] = raw.startswith(bytes.fromhex("e7ac2c00"))
+                  item["cfb_magic"] = raw.startswith(bytes.fromhex("d0cf11e0a1b11ae1"))
+                  item["looks_html"] = raw[:256].lstrip().lower().startswith(
+                      (b"<!doctype html", b"<html", b"<head")
+                  )
+
+                  if olefile.isOleFile(io.BytesIO(raw)):
+                      item["is_ole"] = True
+                      ole = olefile.OleFileIO(io.BytesIO(raw))
+                      paths = ["/".join(parts) for parts in ole.listdir(streams=True, storages=True)]
+                      item["ole_paths"] = paths
+                      item["root_clsid"] = clean(getattr(ole.root, "clsid", None))
+                      metadata = ole.get_metadata()
+                      item["metadata"] = {
+                          "title": clean(getattr(metadata, "title", None)),
+                          "author": clean(getattr(metadata, "author", None)),
+                          "last_saved_by": clean(getattr(metadata, "last_saved_by", None)),
+                          "creating_application": clean(
+                              getattr(metadata, "creating_application", None)
+                          ),
+                          "create_time": clean(getattr(metadata, "create_time", None)),
+                          "last_saved_time": clean(
+                              getattr(metadata, "last_saved_time", None)
+                          ),
+                      }
+                      summary = ole_props(ole, "\x05SummaryInformation")
+                      doc_summary = ole_props(ole, "\x05DocumentSummaryInformation")
+                      item["summary_app_name_prop18"] = clean(summary.get(18))
+                      item["piddsi_version_prop23"] = doc_summary.get(23)
+
+                      if ole.exists("Contents"):
+                          contents = ole.openstream("Contents").read()
+                          item["contents"] = {
+                              "size": len(contents),
+                              "prefix64": contents[:64].hex(),
+                              "byte0": contents[0] if contents else None,
+                              "revision_u16_at_0c": read_u16(contents, 0x0C),
+                              "u32_at_16": read_u32(contents, 0x16),
+                              "u32_at_1a": read_u32(contents, 0x1A),
+                          }
+                      item["has_quill"] = any(p == "Quill" or p.startswith("Quill/") for p in paths)
+                      item["has_escher_stm"] = "EscherStm" in paths
+                      item["has_escher_delay_stm"] = "EscherDelayStm" in paths
+                      ole.close()
+                  else:
+                      item["is_ole"] = False
+
+              except Exception as exc:
+                  item["error"] = f"{type(exc).__name__}: {exc}"
+
+              report.append(item)
+              print(json.dumps(item, ensure_ascii=False, default=str, sort_keys=True))
+
+          with open("corpus-report.json", "w", encoding="utf-8") as output:
+              json.dump(report, output, ensure_ascii=False, indent=2, default=str)
+
+          ok = sum(1 for item in report if item.get("download_ok"))
+          ole_count = sum(1 for item in report if item.get("is_ole"))
+          print()
+          print(f"ИТОГО: скачано={ok}/{len(report)} OLE={ole_count}/{len(report)}")
+      - name: Сохранить только отчёт без чужих бинарников
+        uses: actions/upload-artifact@v4
+        with:
+          name: public-corpus-report
+          path: corpus-report.json
+          if-no-files-found: error
+          retention-days: 7
