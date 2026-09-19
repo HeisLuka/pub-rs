@@ -35,6 +35,7 @@ $rows = @()
 $schemaError = $false
 $executionBlocked = $false
 $seenCases = @{}
+$shouldCheckAdapters = $CheckAdapters -or $RequireExecutable
 
 function Get-OptionalProperty {
     param(
@@ -176,7 +177,7 @@ foreach ($wave in $plan.waves) {
             $schemaError = $true
         }
 
-        if ($CheckAdapters -and $null -ne $runnerPath) {
+        if ($shouldCheckAdapters -and $null -ne $runnerPath) {
             $fullRunnerPath = Join-Path $RepoRoot $runnerPath
             if (-not (Test-Path -LiteralPath $fullRunnerPath -PathType Leaf)) {
                 Add-PlanRow "runner" $experimentId "BLOCKED" "Не найден в integration tree: $runnerPath"
