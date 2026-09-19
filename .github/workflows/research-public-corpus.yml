@@ -248,3 +248,311 @@ jobs:
           path: corpus-report.json
           if-no-files-found: error
           retention-days: 7
+
+
+  type12-width-census:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v5
+      - name: Установить минимальный OLE-ридер
+        run: python -m pip install --disable-pip-version-check olefile
+      - name: Проверить Type12 target framing на известных oracle и новом Publisher 11 корпусе
+        shell: python
+        run: |
+          import hashlib
+          import io
+          import json
+          import struct
+          import urllib.parse
+          import urllib.request
+
+          import olefile
+
+          # Все URL привязаны к immutable commit. Бинарники живут только
+          # в памяти runner и не записываются в git/artifact.
+          sources = [
+              {
+                  "name": "oracle-ec2asp",
+                  "role": "self-check",
+                  "url": "https://raw.githubusercontent.com/azreasoners/ARG-webpage---Archived/faf75b2996bb7f984365b9d4cb737af39c529ac6/ecasp/ec2asp.pub",
+                  "expect_scalars": [[2, 358], [2, 266]],
+              },
+              {
+                  "name": "oracle-help",
+                  "role": "self-check",
+                  "url": "https://raw.githubusercontent.com/Planet-Source-Code/hartoto-flexible-phoone-book__1-69597/1400f033db5f4a57cca6d5392f551943271b7f72/help.pub",
+                  "expect_scalars": [[2, 266]],
+              },
+              {
+                  "name": "virtual-labs-web-master-root",
+                  "role": "new-corpus",
+                  "url": "https://raw.githubusercontent.com/virtual-labs/virtual-smart-structures-and-dynamics-laboratory-iitd/665a5bd751d5e95393d45a74e3d7dcdab2fd56ed/src/lab/Web%20Master%20Vinod%20Sharma.pub",
+              },
+              {
+                  "name": "virtual-labs-web-master-web-site",
+                  "role": "new-corpus",
+                  "url": "https://raw.githubusercontent.com/virtual-labs/virtual-smart-structures-and-dynamics-laboratory-iitd/665a5bd751d5e95393d45a74e3d7dcdab2fd56ed/src/lab/web_site/Web%20Master%20Vinod%20Sharma.pub",
+              },
+          ]
+
+          def u16(data, off):
+              if off < 0 or off + 2 > len(data):
+                  raise ValueError(f"u16 out of bounds: {off}/{len(data)}")
+              return struct.unpack_from("<H", data, off)[0]
+
+          def u32(data, off):
+              if off < 0 or off + 4 > len(data):
+                  raise ValueError(f"u32 out of bounds: {off}/{len(data)}")
+              return struct.unpack_from("<I", data, off)[0]
+
+          def get_quill(raw):
+              ole = olefile.OleFileIO(io.BytesIO(raw))
+              try:
+                  path = ["Quill", "QuillSub", "CONTENTS"]
+                  if not ole.exists(path):
+                      raise ValueError("Quill/QuillSub/CONTENTS отсутствует")
+                  return ole.openstream(path).read(), (
+                      ole.openstream("Contents").read()
+                      if ole.exists("Contents")
+                      else b""
+                  )
+              finally:
+                  ole.close()
+
+          def quill_descriptors(quill):
+              # libmspub MSPUBParser::parseQuill /
+              # parseQuillChunkReference: linked lists start at 0x18,
+              # each descriptor is exactly 24 bytes.
+              out = []
+              list_off = 0x18
+              seen = set()
+              for _ in range(256):
+                  if list_off == 0xFFFFFFFF:
+                      return out
+                  if list_off in seen:
+                      raise ValueError(f"cycle in Quill descriptor lists at 0x{list_off:X}")
+                  seen.add(list_off)
+                  if list_off + 8 > len(quill):
+                      raise ValueError(f"descriptor list out of bounds: 0x{list_off:X}")
+                  count = u16(quill, list_off + 2)
+                  next_off = u32(quill, list_off + 4)
+                  pos = list_off + 8
+                  if pos + count * 24 > len(quill):
+                      raise ValueError(
+                          f"{count} descriptors exceed Quill at 0x{list_off:X}"
+                      )
+                  for _idx in range(count):
+                      marker = u16(quill, pos)
+                      name = quill[pos + 2:pos + 6].decode("latin1")
+                      ident = u16(quill, pos + 6)
+                      opt = u32(quill, pos + 8)
+                      name2 = quill[pos + 12:pos + 16].decode("latin1")
+                      offset = u32(quill, pos + 16)
+                      length = u32(quill, pos + 20)
+                      if offset + length > len(quill):
+                          raise ValueError(
+                              f"descriptor {name}/{ident} exceeds Quill: "
+                              f"{offset}+{length}>{len(quill)}"
+                          )
+                      out.append({
+                          "marker": marker,
+                          "name": name,
+                          "id": ident,
+                          "opt": opt,
+                          "name2": name2,
+                          "offset": offset,
+                          "length": length,
+                      })
+                      pos += 24
+                  list_off = next_off
+              raise ValueError("too many Quill descriptor-list nodes")
+
+          def find_target_sections(payload, plc_count):
+              # OBS-014 / PUBTool v0.25 structural locator.
+              # Header:
+              #   u32 postFixedPayloadSize
+              #   u32 count
+              #   u32 serviceToken
+              #   u32 zero
+              #   u32 zero
+              #   u32 offsets[count]
+              # Records are addressed from the offset-table base.
+              #
+              # We deliberately do not use Apache POI's historical fixed
+              # oneStartsAt/twoStartsAt formulas.
+              min_off = 8 + 4 * (plc_count + 2)
+              min_header = 20 + 4 * plc_count
+              hits = []
+              for h in range(min_off, len(payload) - min_header + 1, 2):
+                  try:
+                      post_size = u32(payload, h)
+                      count = u32(payload, h + 4)
+                      service = u32(payload, h + 8)
+                      zero0 = u32(payload, h + 12)
+                      zero1 = u32(payload, h + 16)
+                  except ValueError:
+                      continue
+                  if count != plc_count or zero0 != 0 or zero1 != 0:
+                      continue
+                  base = h + 20
+                  if base + 4 * count > len(payload):
+                      continue
+                  offsets = [u32(payload, base + 4 * i) for i in range(count)]
+                  if count:
+                      if offsets[0] != 4 * count:
+                          continue
+                      if offsets != sorted(offsets) or len(set(offsets)) != len(offsets):
+                          continue
+                  # Strong invariant from OBS-014: payload size is measured
+                  # from offset-table base to descriptor end.
+                  if post_size != len(payload) - base:
+                      continue
+                  if any(off < 4 * count or off >= post_size for off in offsets):
+                      continue
+
+                  records = []
+                  valid = True
+                  for i, rel in enumerate(offsets):
+                      start = base + rel
+                      end = base + (offsets[i + 1] if i + 1 < count else post_size)
+                      if start + 2 > end or end > len(payload):
+                          valid = False
+                          break
+                      units = u16(payload, start)
+                      expected = 2 + 2 * units
+                      raw_record = payload[start:end]
+                      record = {
+                          "index": i,
+                          "relative_offset": rel,
+                          "start": start,
+                          "end": end,
+                          "size": len(raw_record),
+                          "payload_units": units,
+                          "record_hex": raw_record.hex(),
+                          "exact_count_prefixed_size": expected == len(raw_record),
+                      }
+                      if expected == len(raw_record):
+                          body = raw_record[2:]
+                          try:
+                              text = body.decode("utf-16le")
+                          except UnicodeDecodeError:
+                              text = None
+                          printable = bool(text) and all(
+                              (ch >= " " or ch in "\t\r\n") and ch != "\x00"
+                              for ch in text
+                          )
+                          if printable:
+                              record["utf16_text"] = text
+                          if units in (1, 2):
+                              record["compact_scalar_shape"] = True
+                              record["scalar_le"] = int.from_bytes(body, "little")
+                          else:
+                              record["compact_scalar_shape"] = False
+                      records.append(record)
+                  if not valid:
+                      continue
+
+                  hits.append({
+                      "header_offset": h,
+                      "post_fixed_payload_size": post_size,
+                      "count": count,
+                      "service_token": service,
+                      "offset_table_base": base,
+                      "offsets": offsets,
+                      "records": records,
+                  })
+              return hits
+
+          def scan(raw):
+              quill, contents = get_quill(raw)
+              descriptors = quill_descriptors(quill)
+              tokens = []
+              for d in descriptors:
+                  if d["name"] != "TOKN":
+                      continue
+                  payload = quill[d["offset"]:d["offset"] + d["length"]]
+                  if len(payload) < 8:
+                      continue
+                  plc_count = u32(payload, 0)
+                  plc_type = u32(payload, 4)
+                  if plc_type != 12 or plc_count > 1000:
+                      continue
+                  sections = find_target_sections(payload, plc_count)
+                  tokens.append({
+                      "descriptor": d,
+                      "plc_count": plc_count,
+                      "plc_type": plc_type,
+                      "target_sections": sections,
+                  })
+              scalars = []
+              for tok in tokens:
+                  for sec in tok["target_sections"]:
+                      for rec in sec["records"]:
+                          if rec.get("compact_scalar_shape"):
+                              scalars.append({
+                                  "tokn_id": tok["descriptor"]["id"],
+                                  "plc_count": tok["plc_count"],
+                                  "payload_units": rec["payload_units"],
+                                  "scalar_le": rec["scalar_le"],
+                                  "record_hex": rec["record_hex"],
+                              })
+              return {
+                  "quill_size": len(quill),
+                  "contents_revision_u16_at_0c": (
+                      u16(contents, 0x0C) if len(contents) >= 0x0E else None
+                  ),
+                  "descriptors": descriptors,
+                  "type12": tokens,
+                  "compact_scalar_records": scalars,
+              }
+
+          report = []
+          oracle_ok = True
+          for source in sources:
+              item = {k: v for k, v in source.items() if k != "expect_scalars"}
+              try:
+                  req = urllib.request.Request(
+                      source["url"],
+                      headers={"User-Agent": "pub-rs-type12-research/1.0"},
+                  )
+                  with urllib.request.urlopen(req, timeout=90) as response:
+                      raw = response.read()
+                  item["size"] = len(raw)
+                  item["sha256"] = hashlib.sha256(raw).hexdigest()
+                  item["scan"] = scan(raw)
+                  actual = [
+                      [r["payload_units"], r["scalar_le"]]
+                      for r in item["scan"]["compact_scalar_records"]
+                  ]
+                  if "expect_scalars" in source:
+                      missing = [
+                          pair for pair in source["expect_scalars"]
+                          if pair not in actual
+                      ]
+                      item["self_check_expected"] = source["expect_scalars"]
+                      item["self_check_missing"] = missing
+                      item["self_check_ok"] = not missing
+                      oracle_ok = oracle_ok and not missing
+              except Exception as exc:
+                  item["error"] = f"{type(exc).__name__}: {exc}"
+                  if source["role"] == "self-check":
+                      oracle_ok = False
+              report.append(item)
+              print(json.dumps(item, ensure_ascii=False, sort_keys=True))
+
+          # Новые файлы не считаются классифицированными, если наш scanner
+          # не воспроизвёл уже подтверждённые ec2asp/help oracle.
+          if not oracle_ok:
+              raise SystemExit("SELF-CHECK FAILED: новые corpus результаты недействительны")
+
+          with open("type12-width-report.json", "w", encoding="utf-8") as output:
+              json.dump(report, output, ensure_ascii=False, indent=2)
+
+      - name: Сохранить только Type12 JSON без чужих бинарников
+        uses: actions/upload-artifact@v4
+        with:
+          name: type12-width-report
+          path: type12-width-report.json
+          if-no-files-found: error
+          retention-days: 7
