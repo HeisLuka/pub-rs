@@ -76,7 +76,21 @@ if ([string]::IsNullOrWhiteSpace($major) -or $major -notmatch '^\d+$') {
 }
 
 $registrySubKey = "Software\Microsoft\Office\$major.0\Publisher"
+$policyRegistrySubKey = "Software\Policies\Microsoft\Office\$major.0\publisher"
 $valueName = "PromptForBadFiles"
+
+$policyRegistryKey = [Microsoft.Win32.Registry]::CurrentUser.OpenSubKey($policyRegistrySubKey, $false)
+if ($null -ne $policyRegistryKey) {
+    try {
+        if (@($policyRegistryKey.GetValueNames()) -contains $valueName) {
+            $policyValue = $policyRegistryKey.GetValue($valueName)
+            throw "Нельзя выполнить controlled PromptForBadFiles A/B: policy path HKCU\$policyRegistrySubKey уже задаёт $valueName=$policyValue"
+        }
+    }
+    finally {
+        $policyRegistryKey.Close()
+    }
+}
 $registryKey = $null
 $keyExistedBefore = $false
 $valueExistedBefore = $false
@@ -216,6 +230,8 @@ try {
         policy = [ordered]@{
             mode = $policyMode
             registry_subkey = "HKCU\$registrySubKey"
+            policy_registry_subkey = "HKCU\$policyRegistrySubKey"
+            policy_override_present = $false
             value_name = $valueName
             effective_test_value = if ($policyMode -eq "prompt") { 1 } else { $null }
             previous_state = [ordered]@{
