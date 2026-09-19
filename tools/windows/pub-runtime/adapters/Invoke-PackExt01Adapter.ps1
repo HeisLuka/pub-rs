@@ -217,6 +217,13 @@ $result = [ordered]@{
     )
 }
 
+$finalResultPath = Join-Path ([string]$context.oracle_dir) "pack-picture-state.json"
+
+if ($result.source.semantic.state -ne "value") {
+    Write-PubJson -Value $result -Path $finalResultPath
+    throw "Baseline fixture не удовлетворяет PACK_TARGET contract: $($result.source.semantic.message)"
+}
+
 if ($caseId -ne "baseline") {
     if ([string]::IsNullOrWhiteSpace($env:PUB_PACK_OPERATOR_MANIFEST)) {
         throw "Для $caseId требуется PUB_PACK_OPERATOR_MANIFEST"
@@ -268,4 +275,4 @@ if ($caseId -ne "baseline") {
     }
 }
 
-Write-PubJson -Value $result -Path (Join-Path ([string]$context.oracle_dir) "pack-picture-state.json")
+Write-PubJson -Value $result -Path $finalResultPath
