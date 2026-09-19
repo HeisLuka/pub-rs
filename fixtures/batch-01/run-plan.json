@@ -1,0 +1,302 @@
+{
+  "schema": "pub-batch-01/run-plan/v1",
+  "batch_id": "BATCH-01",
+  "evidence_rule": "Case completion produces raw artifacts only. No format claim is promoted until offline diff + OBS/evidence + claim reconciliation.",
+  "snapshots": {
+    "MODERN": {
+      "required_label": "MODERN",
+      "expected_runtime_scope": "Publisher 2019 / 16.0 build 12527",
+      "verification": "LAB-ENV-01 manifest is authoritative; label alone is not evidence."
+    },
+    "P2007": {
+      "required_label": "P2007",
+      "expected_runtime_scope": "Publisher 2007 / Office 12.x; preferred RTM 12.0.4518.1014",
+      "verification": "LAB-ENV-01 binary/runtime identity is authoritative; exact build is not inferred from fixture PIDDSI_VERSION."
+    }
+  },
+  "waves": [
+    {
+      "wave_id": "M",
+      "snapshot": "MODERN",
+      "order": [
+        {
+          "experiment_id": "MORPH-FLAGS-01",
+          "adapter": "tools/windows/pub-runtime/adapters/Invoke-MorphFlagsObjectAdapter.ps1",
+          "cases": [
+            {
+              "case_id": "format-fill-336699",
+              "source_fixture_id": "MORPH-WIZARD-TRACKED-BASE",
+              "state": "ready_when_pinned"
+            },
+            {
+              "case_id": "move-x-12",
+              "source_fixture_id": "MORPH-WIZARD-TRACKED-BASE",
+              "state": "ready_when_pinned"
+            },
+            {
+              "case_id": "resize-width-12",
+              "source_fixture_id": "MORPH-WIZARD-TRACKED-BASE",
+              "state": "ready_when_pinned"
+            },
+            {
+              "case_id": "rotate-15",
+              "source_fixture_id": "MORPH-WIZARD-TRACKED-BASE",
+              "state": "ready_when_pinned"
+            },
+            {
+              "case_id": "restore-left",
+              "source_fixture_id": "MORPH-MOVED-LEFT-SOURCE",
+              "state": "ready_when_pinned"
+            }
+          ],
+          "guardrail": "Each arm changes exactly one COM property. Sentinel/no-op collision is rejected by adapter."
+        },
+        {
+          "experiment_id": "MORPH-SCENARIO-01",
+          "adapter": "tools/windows/pub-runtime/adapters/Invoke-MorphScenarioAdapter.ps1",
+          "cases": [
+            {
+              "case_id_template": "change-document--wizard-<target_wizard_id>--design-<target_design_id>",
+              "source_fixture_id": "MORPH-WIZARD-TRACKED-BASE",
+              "state": "needs_parameters",
+              "unresolved": [
+                "target_wizard_id",
+                "target_design_id"
+              ],
+              "parameter_rule": "IDs must be fixed from documented Publisher COM/UI state before run; never inferred from OplControlling bytes."
+            }
+          ]
+        },
+        {
+          "experiment_id": "Paragraph alignment micro-fixtures",
+          "adapter": "tools/windows/pub-runtime/adapters/Invoke-ParagraphAlignmentAdapter.ps1",
+          "cases": [
+            {
+              "case_id": "explicit--align-0--current",
+              "source_fixture_id": "ALIGN-EXPLICIT-PARAGRAPH-BASE",
+              "state": "ready_when_pinned"
+            },
+            {
+              "case_id": "explicit--align-5--current",
+              "source_fixture_id": "ALIGN-EXPLICIT-PARAGRAPH-BASE",
+              "state": "ready_when_pinned"
+            },
+            {
+              "case_id": "explicit--align-6--current",
+              "source_fixture_id": "ALIGN-EXPLICIT-PARAGRAPH-BASE",
+              "state": "ready_when_pinned"
+            },
+            {
+              "case_id": "explicit--align-7--current",
+              "source_fixture_id": "ALIGN-EXPLICIT-PARAGRAPH-BASE",
+              "state": "ready_when_pinned"
+            },
+            {
+              "case_id": "explicit--align-8--current",
+              "source_fixture_id": "ALIGN-EXPLICIT-PARAGRAPH-BASE",
+              "state": "ready_when_pinned"
+            },
+            {
+              "case_id": "explicit--align-9--current",
+              "source_fixture_id": "ALIGN-EXPLICIT-PARAGRAPH-BASE",
+              "state": "ready_when_pinned"
+            },
+            {
+              "case_id": "explicit--align-10--current",
+              "source_fixture_id": "ALIGN-EXPLICIT-PARAGRAPH-BASE",
+              "state": "ready_when_pinned"
+            },
+            {
+              "case_id": "explicit--align-11--current",
+              "source_fixture_id": "ALIGN-EXPLICIT-PARAGRAPH-BASE",
+              "state": "ready_when_pinned"
+            },
+            {
+              "case_id": "style--align-2--current",
+              "source_fixture_id": "ALIGN-STYLE-TOPOLOGY-BASE",
+              "state": "ready_when_pinned"
+            },
+            {
+              "case_id": "style--align-3--current",
+              "source_fixture_id": "ALIGN-STYLE-TOPOLOGY-BASE",
+              "state": "ready_when_pinned"
+            },
+            {
+              "case_id": "style--align-4--current",
+              "source_fixture_id": "ALIGN-STYLE-TOPOLOGY-BASE",
+              "state": "ready_when_pinned"
+            }
+          ],
+          "deferred": [
+            {
+              "writer": "publisher2000",
+              "state": "after_current_raw_attribution"
+            },
+            {
+              "writer": "publisher98",
+              "state": "after_current_raw_attribution"
+            }
+          ]
+        },
+        {
+          "experiment_id": "PACK-EXT-01",
+          "entrypoint": "tools/windows/pub-runtime/Invoke-PackExt01Capture.ps1",
+          "cases": [
+            {
+              "case_id": "baseline",
+              "source_fixture_id": "PACK-EMBEDDED-PNG-BASE",
+              "asset_fixture_ids": [
+                "PACK-SENTINEL-PNG"
+              ],
+              "state": "ready_when_pinned",
+              "operator_action": false
+            },
+            {
+              "case_id": "manual-linked",
+              "source_fixture_id": "PACK-EMBEDDED-PNG-BASE",
+              "asset_fixture_ids": [
+                "PACK-SENTINEL-PNG"
+              ],
+              "state": "ready_when_pinned",
+              "operator_action": true,
+              "requires": [
+                "OutputPub",
+                "EmittedAssetsRoot",
+                "OperatorManifest"
+              ]
+            },
+            {
+              "case_id": "pack-commercial",
+              "source_fixture_id": "PACK-EMBEDDED-PNG-BASE",
+              "asset_fixture_ids": [
+                "PACK-SENTINEL-PNG"
+              ],
+              "state": "ready_when_pinned",
+              "operator_action": true,
+              "requires": [
+                "OutputPub",
+                "EmittedAssetsRoot",
+                "PackageFile",
+                "OperatorManifest"
+              ]
+            }
+          ],
+          "deferred": [
+            {
+              "case_id": "pack-computer",
+              "state": "after_primary_three_state_result"
+            },
+            {
+              "asset_fixture_id": "PACK-CONTROL-ASSET",
+              "state": "after_png_primary_result"
+            }
+          ]
+        },
+        {
+          "experiment_id": "COM-ORACLE-03",
+          "adapter": "tools/windows/pub-runtime/adapters/Invoke-StoryTopologyAdapter.ps1",
+          "cases": [
+            {
+              "case_id": "unlinked--current",
+              "source_fixture_id": "STORY-UNLINKED-BASE",
+              "state": "ready_when_pinned"
+            },
+            {
+              "case_id": "link--current",
+              "source_fixture_id": "STORY-UNLINKED-BASE",
+              "state": "ready_when_pinned"
+            },
+            {
+              "case_id": "break--current",
+              "source_fixture_id": "STORY-LINKED-A-B",
+              "state": "ready_when_pinned"
+            }
+          ],
+          "deferred": [
+            {
+              "writer": "publisher2000",
+              "state": "after_current_raw_attribution"
+            },
+            {
+              "writer": "publisher98",
+              "state": "after_current_raw_attribution"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "wave_id": "V",
+      "snapshot": "P2007",
+      "order": [
+        {
+          "experiment_id": "VAL-AUTH-01",
+          "adapter": "tools/windows/pub-runtime/adapters/Invoke-ValAuth01Adapter.ps1",
+          "cases": [
+            {
+              "case_id": "VAL-PARKER-BASELINE--default",
+              "source_fixture_id": "VAL-PARKER-BASELINE",
+              "state": "ready_when_bytes_materialized"
+            },
+            {
+              "case_id": "VAL-PARKER-BASELINE--prompt",
+              "source_fixture_id": "VAL-PARKER-BASELINE",
+              "state": "ready_when_bytes_materialized"
+            },
+            {
+              "case_id": "VAL-CRVAL02-TERMINAL-CR-TO-R--default",
+              "source_fixture_id": "VAL-CRVAL02-TERMINAL-CR-TO-R",
+              "state": "ready_when_bytes_materialized"
+            },
+            {
+              "case_id": "VAL-CRVAL02-TERMINAL-CR-TO-R--prompt",
+              "source_fixture_id": "VAL-CRVAL02-TERMINAL-CR-TO-R",
+              "state": "ready_when_bytes_materialized"
+            },
+            {
+              "case_id": "VAL-CRVAL04-FDPP-PLUS2--default",
+              "source_fixture_id": "VAL-CRVAL04-FDPP-PLUS2",
+              "state": "ready_when_bytes_materialized"
+            },
+            {
+              "case_id": "VAL-CRVAL04-FDPP-PLUS2--prompt",
+              "source_fixture_id": "VAL-CRVAL04-FDPP-PLUS2",
+              "state": "ready_when_bytes_materialized"
+            },
+            {
+              "case_id": "VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1--default",
+              "source_fixture_id": "VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1",
+              "state": "ready_when_bytes_materialized"
+            },
+            {
+              "case_id": "VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1--prompt",
+              "source_fixture_id": "VAL-CRVAL05-COHERENT-BOUNDARY-PLUS1",
+              "state": "ready_when_bytes_materialized"
+            },
+            {
+              "case_id": "VAL-CRVAL01-INTERNAL-CR-TO-R--default",
+              "source_fixture_id": "VAL-CRVAL01-INTERNAL-CR-TO-R",
+              "state": "ready_when_bytes_materialized"
+            },
+            {
+              "case_id": "VAL-CRVAL01-INTERNAL-CR-TO-R--prompt",
+              "source_fixture_id": "VAL-CRVAL01-INTERNAL-CR-TO-R",
+              "state": "ready_when_bytes_materialized"
+            },
+            {
+              "case_id": "VAL-CRVAL03-TERMINAL-CR-TO-LF--default",
+              "source_fixture_id": "VAL-CRVAL03-TERMINAL-CR-TO-LF",
+              "state": "ready_when_bytes_materialized"
+            },
+            {
+              "case_id": "VAL-CRVAL03-TERMINAL-CR-TO-LF--prompt",
+              "source_fixture_id": "VAL-CRVAL03-TERMINAL-CR-TO-LF",
+              "state": "ready_when_bytes_materialized"
+            }
+          ],
+          "guardrail": "default/prompt arms use identical bound bytes; Group Policy override invalidates controlled A/B."
+        }
+      ]
+    }
+  ]
+}
