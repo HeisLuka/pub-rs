@@ -237,6 +237,143 @@ function Copy-PubBoundFile {
     }
 }
 
+
+function Bind-PubLabEnvironment {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string]$ComparisonPath,
+        [Parameter(Mandatory = $true)]
+        [string]$ExpectedSnapshotId,
+        [Parameter(Mandatory = $true)]
+        [string]$DestinationDir
+    )
+
+    $comparisonSource = (Resolve-Path -LiteralPath $ComparisonPath).Path
+    $comparison = Get-Content -LiteralPath $comparisonSource -Raw | ConvertFrom-Json
+
+    if ([string]$comparison.schema -ne "pub-runtime/environment-comparison/v1") {
+        throw "Неожиданная schema LAB-ENV comparison: $($comparison.schema)"
+    }
+    if (-not [bool]$comparison.stable) {
+        throw "LAB-ENV comparison не является stable; native run запрещён."
+    }
+    if ([string]$comparison.snapshot_id -ne $ExpectedSnapshotId) {
+        throw "LAB-ENV snapshot mismatch: expected=$ExpectedSnapshotId actual=$($comparison.snapshot_id)"
+    }
+
+    $fingerprints = @($comparison.distinct_stable_fingerprints)
+    if ($fingerprints.Count -ne 1 -or [string]::IsNullOrWhiteSpace([string]$fingerprints[0])) {
+        throw "LAB-ENV comparison должен содержать ровно один stable fingerprint."
+    }
+    $expectedFingerprint = ([string]$fingerprints[0]).ToLowerInvariant()
+
+    $captures = @($comparison.captures)
+    if ($captures.Count -lt 2) {
+        throw "LAB-ENV comparison должен содержать минимум два process-cold capture."
+    }
+    if ([int]$comparison.capture_count -ne $captures.Count) {
+        throw "LAB-ENV capture_count не совпадает с фактическим числом capture references."
+    }
+
+    New-Item -ItemType Directory -Force -Path $DestinationDir | Out-Null
+
+    $seenIndices = @{}
+    $captureBindings = @()
+    foreach ($captureRef in $captures) {
+        $index = [int]$captureRef.index
+        if ($index -lt 1 -or $seenIndices.ContainsKey($index)) {
+            throw "LAB-ENV содержит некорректный или повторный capture index=$index"
+        }
+        $seenIndices[$index] = $true
+
+        $captureSource = (Resolve-Path -LiteralPath ([string]$captureRef.path)).Path
+        $capture = Get-Content -LiteralPath $captureSource -Raw | ConvertFrom-Json
+
+        if ([string]$capture.snapshot_id -ne $ExpectedSnapshotId) {
+            throw "LAB-ENV capture index=$index имеет snapshot_id=$($capture.snapshot_id), ожидался $ExpectedSnapshotId"
+        }
+
+        $captureFingerprint = ([string]$capture.stable_fingerprint_sha256).ToLowerInvariant()
+        if ($captureFingerprint -ne $expectedFingerprint) {
+            throw "LAB-ENV capture index=$index имеет fingerprint=$captureFingerprint, ожидался $expectedFingerprint"
+        }
+
+        $refFingerprint = [string]$captureRef.stable_fingerprint_sha256
+        if (-not [string]::IsNullOrWhiteSpace($refFingerprint) -and
+            $refFingerprint.ToLowerInvariant() -ne $expectedFingerprint) {
+            throw "LAB-ENV comparison reference index=$index расходится по stable fingerprint."
+        }
+
+        $captureDestination = Join-Path $DestinationDir ("environment-{0:D2}.json" -f $index)
+        if (Test-Path -LiteralPath $captureDestination) {
+            throw "LAB-ENV destination уже существует: $captureDestination"
+        }
+
+        $binding = Copy-PubBoundFile -Source $captureSource -Destination $captureDestination
+        $captureBindings += [ordered]@{
+            index = $index
+            stable_fingerprint_sha256 = $expectedFingerprint
+            file = $binding
+        }
+    }
+
+    $comparisonDestination = Join-Path $DestinationDir "comparison.json"
+    if (Test-Path -LiteralPath $comparisonDestination) {
+        throw "LAB-ENV comparison destination уже существует: $comparisonDestination"
+    }
+    $comparisonBinding = Copy-PubBoundFile -Source $comparisonSource -Destination $comparisonDestination
+
+    return [ordered]@{
+        schema = "pub-runtime/lab-environment-binding/v1"
+        snapshot_id = $ExpectedSnapshotId
+        stable_fingerprint_sha256 = $expectedFingerprint
+        comparison = $comparisonBinding
+        captures = $captureBindings
+        reference_capture_bound_path = $captureBindings[0].file.bound_copy.path
+    }
+}
+
+function Get-PubRuntimeEnvironmentProjection {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Manifest
+    )
+
+    return [ordered]@{
+        snapshot_id = [string]$Manifest.snapshot_id
+        os = $Manifest.os
+        powershell = $Manifest.powershell
+        locale = $Manifest.locale
+        timezone = $Manifest.timezone
+        default_printer = $Manifest.default_printer
+        publisher = $Manifest.publisher
+    }
+}
+
+function Assert-PubRuntimeEnvironmentMatchesLabCapture {
+    param(
+        [Parameter(Mandatory = $true)]
+        $RuntimeManifest,
+        [Parameter(Mandatory = $true)]
+        [string]$LabCapturePath
+    )
+
+    $labCapture = Get-Content -LiteralPath $LabCapturePath -Raw | ConvertFrom-Json
+    $runtimeProjection = Get-PubRuntimeEnvironmentProjection -Manifest $RuntimeManifest
+    $labProjection = Get-PubRuntimeEnvironmentProjection -Manifest $labCapture
+
+    $runtimeJson = $runtimeProjection | ConvertTo-Json -Depth 32 -Compress
+    $labJson = $labProjection | ConvertTo-Json -Depth 32 -Compress
+    if ($runtimeJson -ne $labJson) {
+        throw "Текущий runtime environment расходится с bound LAB-ENV capture; native run запрещён."
+    }
+
+    return [ordered]@{
+        state = "match"
+        reference_capture = (Resolve-Path -LiteralPath $LabCapturePath).Path
+    }
+}
+
 function Get-PubDirectoryHashes {
     param(
         [Parameter(Mandatory = $true)]
@@ -286,6 +423,9 @@ Export-ModuleMember -Function @(
     "Get-PubPublisherIdentity",
     "Get-PubEnvironmentManifest",
     "Copy-PubBoundFile",
+    "Bind-PubLabEnvironment",
+    "Get-PubRuntimeEnvironmentProjection",
+    "Assert-PubRuntimeEnvironmentMatchesLabCapture",
     "Get-PubDirectoryHashes",
     "Write-PubHashList"
 )
