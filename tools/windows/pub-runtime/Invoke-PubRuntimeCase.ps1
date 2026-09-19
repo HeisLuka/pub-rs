@@ -63,10 +63,12 @@ $assetDir = Join-Path $inputDir "external-assets"
 $oracleDir = Join-Path $runDir "oracle"
 $outputDir = Join-Path $runDir "output"
 $inspectDir = Join-Path $runDir "inspect"
+$assetsDir = Join-Path $runDir "assets"
+$assetsExtractedDir = Join-Path $assetsDir "extracted"
 $logsDir = Join-Path $runDir "logs"
 $metaDir = Join-Path $runDir "meta"
 
-foreach ($dir in @($inputDir, $assetDir, $oracleDir, $outputDir, $inspectDir, $logsDir, $metaDir)) {
+foreach ($dir in @($inputDir, $assetDir, $oracleDir, $outputDir, $inspectDir, $assetsDir, $assetsExtractedDir, $logsDir, $metaDir)) {
     New-Item -ItemType Directory -Force -Path $dir | Out-Null
 }
 
@@ -147,6 +149,8 @@ $runContext = [ordered]@{
     oracle_dir = $oracleDir
     output_dir = $outputDir
     inspect_dir = $inspectDir
+    assets_dir = $assetsDir
+    assets_extracted_dir = $assetsExtractedDir
     logs_dir = $logsDir
     meta_dir = $metaDir
     snapshot_id = $SnapshotId
