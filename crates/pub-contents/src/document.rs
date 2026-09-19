@@ -1,5 +1,5 @@
 use crate::{
-    BLOCK_TYPE_CONTAINER_A0, BLOCK_TYPE_HANDLE_U32, BlockReadError, ContentsCursor,
+    BLOCK_TYPE_CONTAINER_A0, BLOCK_TYPE_HANDLE_U32, BLOCK_TYPE_U32, BlockReadError, ContentsCursor,
     ContentsReadError, RawContentsBlock, RawContentsBlockBody, parse_confirmed_block,
 };
 use pub_core::RawSpan;
@@ -7,6 +7,7 @@ use serde::{Deserialize, Serialize};
 use std::fmt;
 
 pub const DOCUMENT_PAGE_LIST_ID: u8 = 0x02;
+pub const DOCUMENT_DW_NEXT_UNIQUE_OID_ID: u8 = 0x23;
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct DocumentPageListEntry {
@@ -31,6 +32,85 @@ impl DocumentPageList {
     pub fn handles(&self) -> impl Iterator<Item = u32> + '_ {
         self.entries.iter().map(|entry| entry.handle)
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub struct DocumentDwNextUniqueOid {
+    /// Значение Microsoft-origin поля DOCUMENT.DwNextUniqueOid.
+    ///
+    /// Тип намеренно не называет это значение allocator-правилом: связь с
+    /// конкретным компонентом Oid остаётся отдельной исследовательской задачей.
+    pub value: u32,
+    pub value_source: RawSpan,
+    pub block: RawContentsBlock,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum DocumentDwNextUniqueOidReadError {
+    UnexpectedId { offset: u64, id: u8 },
+    UnexpectedType { offset: u64, block_type: u8 },
+    InconsistentBody { offset: u64 },
+}
+
+impl fmt::Display for DocumentDwNextUniqueOidReadError {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::UnexpectedId { offset, id } => write!(
+                f,
+                "неподтверждённый id DOCUMENT.DwNextUniqueOid по смещению {offset}: 0x{id:02X}"
+            ),
+            Self::UnexpectedType { offset, block_type } => write!(
+                f,
+                "неподтверждённый wire type DOCUMENT.DwNextUniqueOid по смещению {offset}: 0x{block_type:02X}"
+            ),
+            Self::InconsistentBody { offset } => write!(
+                f,
+                "DOCUMENT.DwNextUniqueOid по смещению {offset} не содержит u32 body"
+            ),
+        }
+    }
+}
+
+impl std::error::Error for DocumentDwNextUniqueOidReadError {}
+
+/// Поднимает только подтверждённую физическую форму DOCUMENT field0x23.
+///
+/// Microsoft-generated Publisher metadata называет поле DwNextUniqueOid, а
+/// закрытый priv/wire Rosetta относит его к fixed-u32 классу. Функция не
+/// выводит из значения политику выделения Oid и не изменяет его.
+pub fn parse_confirmed_document_dw_next_unique_oid(
+    block: RawContentsBlock,
+) -> Result<DocumentDwNextUniqueOid, DocumentDwNextUniqueOidReadError> {
+    if block.id != DOCUMENT_DW_NEXT_UNIQUE_OID_ID {
+        return Err(DocumentDwNextUniqueOidReadError::UnexpectedId {
+            offset: block.source.offset,
+            id: block.id,
+        });
+    }
+    if block.block_type != BLOCK_TYPE_U32 {
+        return Err(DocumentDwNextUniqueOidReadError::UnexpectedType {
+            offset: block.source.offset,
+            block_type: block.block_type,
+        });
+    }
+
+    let (value, value_source) = match &block.body {
+        RawContentsBlockBody::U32 {
+            value,
+            value_source,
+        } => (*value, value_source.clone()),
+        _ => {
+            return Err(DocumentDwNextUniqueOidReadError::InconsistentBody {
+                offset: block.source.offset,
+            });
+        }
+    };
+
+    Ok(DocumentDwNextUniqueOid {
+        value,
+        value_source,
+        block,
+    })
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -190,6 +270,39 @@ mod tests {
     fn parse_outer(bytes: &[u8]) -> RawContentsBlock {
         let mut cursor = ContentsCursor::new(StreamPath("/Contents".into()), bytes);
         parse_confirmed_block(&mut cursor).expect("outer PageList должен читаться")
+    }
+
+    #[test]
+    fn parses_confirmed_dw_next_unique_oid_as_u32_with_provenance() {
+        let bytes = [0x23, 0x20, 0x02, 0x00, 0x00, 0x00];
+        let mut cursor = ContentsCursor::new(StreamPath("/Contents".into()), &bytes);
+        let block = parse_confirmed_block(&mut cursor)
+            .expect("DwNextUniqueOid block должен физически читаться");
+
+        let field = parse_confirmed_document_dw_next_unique_oid(block)
+            .expect("field0x23/type0x20 должен приниматься как DwNextUniqueOid");
+
+        assert_eq!(field.value, 2);
+        assert_eq!(field.value_source.offset, 2);
+        assert_eq!(field.value_source.len, 4);
+        assert_eq!(field.block.id, DOCUMENT_DW_NEXT_UNIQUE_OID_ID);
+    }
+
+    #[test]
+    fn dw_next_unique_oid_rejects_handle_u32_wire() {
+        let bytes = [0x23, 0x70, 0x02, 0x00, 0x00, 0x00];
+        let mut cursor = ContentsCursor::new(StreamPath("/Contents".into()), &bytes);
+        let block = parse_confirmed_block(&mut cursor)
+            .expect("handle-u32 block должен оставаться физически читаемым");
+
+        assert_eq!(
+            parse_confirmed_document_dw_next_unique_oid(block)
+                .expect_err("handle wire нельзя повышать до DwNextUniqueOid"),
+            DocumentDwNextUniqueOidReadError::UnexpectedType {
+                offset: 0,
+                block_type: BLOCK_TYPE_HANDLE_U32,
+            }
+        );
     }
 
     #[test]

@@ -6,25 +6,29 @@ mod block;
 mod directory;
 mod document;
 mod document_write;
+mod identity;
 mod reference;
 
 pub use block::{
     BLOCK_TYPE_CONTAINER_88, BLOCK_TYPE_CONTAINER_90, BLOCK_TYPE_CONTAINER_A0, BLOCK_TYPE_DUMMY,
-    BLOCK_TYPE_HANDLE_U32, BLOCK_TYPE_U32, BlockReadError, RawContentsBlock, RawContentsBlockBody,
-    parse_confirmed_block,
+    BLOCK_TYPE_FIXED_8, BLOCK_TYPE_HANDLE_U32, BLOCK_TYPE_U32, BlockReadError, RawContentsBlock,
+    RawContentsBlockBody, parse_confirmed_block,
 };
 pub use directory::{
     Contents0x2cDirectory, Contents0x2cDirectorySlot, DirectoryReadError,
     parse_confirmed_0x2c_directory,
 };
 pub use document::{
-    DOCUMENT_PAGE_LIST_ID, DocumentPageList, DocumentPageListEntry, DocumentPageListReadError,
+    DOCUMENT_DW_NEXT_UNIQUE_OID_ID, DOCUMENT_PAGE_LIST_ID, DocumentDwNextUniqueOid,
+    DocumentDwNextUniqueOidReadError, DocumentPageList, DocumentPageListEntry,
+    DocumentPageListReadError, parse_confirmed_document_dw_next_unique_oid,
     parse_confirmed_document_page_list,
 };
 pub use document_write::{
     DocumentSequenceHandlePatch, DocumentSequencePermutationError, DocumentSequencePermutationPlan,
     apply_confirmed_document_sequence_permutation, plan_confirmed_document_sequence_permutation,
 };
+pub use identity::{OidIdentityPayload, OidIdentityReadError, parse_confirmed_oid_identity_payload};
 pub use reference::{
     CHUNK_REFERENCE_OFFSET_ID, CHUNK_REFERENCE_PARENT_SEQ_NUM_ID, CHUNK_REFERENCE_RAW_TYPE_ID,
     ChunkReferenceReadError, Contents0x2cChunkReference, ObservedU32Field,
