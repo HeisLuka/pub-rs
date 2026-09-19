@@ -33,6 +33,22 @@ $schemaError = $false
 $executionBlocked = $false
 $seenCases = @{}
 
+function Get-OptionalProperty {
+    param(
+        [Parameter(Mandatory = $true)]
+        $Object,
+        [Parameter(Mandatory = $true)]
+        [string]$Name
+    )
+
+    $property = $Object.PSObject.Properties[$Name]
+    if ($null -eq $property) {
+        return $null
+    }
+
+    return $property.Value
+}
+
 function Add-PlanRow {
     param(
         [string]$Kind,
@@ -74,7 +90,7 @@ function Check-FixtureReference {
 
 foreach ($wave in $plan.waves) {
     $snapshotName = [string]$wave.snapshot
-    if ($null -eq $plan.snapshots.$snapshotName) {
+    if (-not ($plan.snapshots.PSObject.Properties.Name -contains $snapshotName)) {
         Add-PlanRow "wave" ([string]$wave.wave_id) "SCHEMA_ERROR" "Неизвестный snapshot=$snapshotName"
         $schemaError = $true
     }
@@ -83,11 +99,14 @@ foreach ($wave in $plan.waves) {
         $experimentId = [string]$group.experiment_id
         $runnerPath = $null
 
-        if ($null -ne $group.adapter -and -not [string]::IsNullOrWhiteSpace([string]$group.adapter)) {
-            $runnerPath = [string]$group.adapter
+        $adapterValue = Get-OptionalProperty -Object $group -Name "adapter"
+        $entrypointValue = Get-OptionalProperty -Object $group -Name "entrypoint"
+
+        if ($null -ne $adapterValue -and -not [string]::IsNullOrWhiteSpace([string]$adapterValue)) {
+            $runnerPath = [string]$adapterValue
         }
-        elseif ($null -ne $group.entrypoint -and -not [string]::IsNullOrWhiteSpace([string]$group.entrypoint)) {
-            $runnerPath = [string]$group.entrypoint
+        elseif ($null -ne $entrypointValue -and -not [string]::IsNullOrWhiteSpace([string]$entrypointValue)) {
+            $runnerPath = [string]$entrypointValue
         }
         else {
             Add-PlanRow "runner" $experimentId "SCHEMA_ERROR" "Нет adapter/entrypoint"
@@ -107,11 +126,13 @@ foreach ($wave in $plan.waves) {
 
         foreach ($case in $group.cases) {
             $caseId = $null
-            if ($null -ne $case.case_id) {
-                $caseId = [string]$case.case_id
+            $caseIdValue = Get-OptionalProperty -Object $case -Name "case_id"
+            $caseTemplateValue = Get-OptionalProperty -Object $case -Name "case_id_template"
+            if ($null -ne $caseIdValue) {
+                $caseId = [string]$caseIdValue
             }
-            elseif ($null -ne $case.case_id_template) {
-                $caseId = [string]$case.case_id_template
+            elseif ($null -ne $caseTemplateValue) {
+                $caseId = [string]$caseTemplateValue
             }
 
             if ([string]::IsNullOrWhiteSpace($caseId)) {
@@ -129,13 +150,14 @@ foreach ($wave in $plan.waves) {
                 $seenCases[$caseKey] = $true
             }
 
-            $state = [string]$case.state
+            $state = [string](Get-OptionalProperty -Object $case -Name "state")
             if ([string]::IsNullOrWhiteSpace($state)) {
                 Add-PlanRow "case" $caseKey "SCHEMA_ERROR" "Case state отсутствует"
                 $schemaError = $true
             }
             elseif ($state -eq "needs_parameters") {
-                $unresolved = @($case.unresolved)
+                $unresolvedValue = Get-OptionalProperty -Object $case -Name "unresolved"
+                $unresolved = @($unresolvedValue)
                 if ($unresolved.Count -eq 0) {
                     Add-PlanRow "case" $caseKey "SCHEMA_ERROR" "needs_parameters без unresolved"
                     $schemaError = $true
@@ -149,15 +171,17 @@ foreach ($wave in $plan.waves) {
                 Add-PlanRow "case" $caseKey "DEFINED" $state
             }
 
-            if ($null -ne $case.source_fixture_id) {
-                Check-FixtureReference -FixtureId ([string]$case.source_fixture_id) -CaseKey $caseKey
+            $sourceFixtureId = Get-OptionalProperty -Object $case -Name "source_fixture_id"
+            if ($null -ne $sourceFixtureId) {
+                Check-FixtureReference -FixtureId ([string]$sourceFixtureId) -CaseKey $caseKey
             }
             else {
                 Add-PlanRow "fixture" $caseKey "SCHEMA_ERROR" "source_fixture_id отсутствует"
                 $schemaError = $true
             }
 
-            foreach ($assetId in @($case.asset_fixture_ids)) {
+            $assetFixtureIds = Get-OptionalProperty -Object $case -Name "asset_fixture_ids"
+            foreach ($assetId in @($assetFixtureIds)) {
                 if ($null -ne $assetId -and -not [string]::IsNullOrWhiteSpace([string]$assetId)) {
                     Check-FixtureReference -FixtureId ([string]$assetId) -CaseKey "$caseKey asset"
                 }
